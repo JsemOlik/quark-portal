@@ -32,7 +32,7 @@ import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem, type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid, Server, ScrollText, Headset, Menu, Search } from 'lucide-react';
+import { LayoutGrid, Server, ScrollText, Headset, Menu, Search, ShoppingCart, ArrowLeft } from 'lucide-react';
 import AppLogo from './app-logo';
 import AppLogoIcon from './app-logo-icon';
 
@@ -61,14 +61,14 @@ const mainNavItems: NavItem[] = [
 
 const rightNavItems: NavItem[] = [
     {
-        title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
-        icon: Folder,
+        title: 'Return Home',
+        href: '/',
+        icon: ArrowLeft,
     },
     {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
-        icon: BookOpen,
+        title: 'Return to Store',
+        href: '/store',
+        icon: ShoppingCart,
     },
 ];
 
@@ -139,7 +139,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                                             ? item.href
                                                             : item.href.url
                                                     }
-                                                    target="_blank"
+                                                    // target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="flex items-center space-x-2 font-medium"
                                                 >
@@ -208,13 +208,13 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
 
                     <div className="ml-auto flex items-center space-x-2">
                         <div className="relative flex items-center space-x-1">
-                            <Button
+                            {/* <Button
                                 variant="ghost"
                                 size="icon"
                                 className="group h-9 w-9 cursor-pointer"
                             >
                                 <Search className="!size-5 opacity-80 group-hover:opacity-100" />
-                            </Button>
+                            </Button> */}
                             <div className="hidden lg:flex">
                                 {rightNavItems.map((item) => (
                                     <TooltipProvider
