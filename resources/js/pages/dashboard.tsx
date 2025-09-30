@@ -75,7 +75,7 @@ const pill = {
 };
 
 const cardBase =
-  'rounded-xl shadow-lg bg-card dark:bg-card p-4 flex flex-col gap-4';
+  'rounded-xl bg-card dark:bg-card p-4 flex flex-col gap-4';
 
 const listRowBase =
   'grid [grid-template-columns:1fr_auto] gap-4 px-3 py-4 items-center transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-sidebar-border';

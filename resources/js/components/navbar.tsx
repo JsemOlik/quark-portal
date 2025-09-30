@@ -3,7 +3,7 @@ import { Link, usePage } from '@inertiajs/react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
-import { dashboard, login, register } from '@/routes';
+import { login, register } from '@/routes';
 import { type SharedData } from '@/types';
 
 type NavItem = {
@@ -12,8 +12,8 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { label: 'Game Hosting', href: '/' },
-  { label: 'VPS', href: '/' },
+  { label: 'Game Hosting', href: '/game-hosting' },
+  { label: 'VPS', href: '/vps' },
   { label: 'About Us', href: '/about-us' },
 ];
 
@@ -58,7 +58,9 @@ export default function Navbar() {
                   variant="outline"
                   className="h-8 rounded-lg px-3 border-white/15 hover:bg-white/10"
                 >
-                  <Link href={dashboard()}>Dashboard</Link>
+                  <Link
+                //   href={dashboard()}
+                  href='/dashboard'>Dashboard</Link>
                 </Button>
               ) : (
                 <>
@@ -92,7 +94,7 @@ export default function Navbar() {
 
       {/* Mobile sheet */}
       <div
-        className={`fixed inset-x-0 top-14 z-40 md:hidden transition-all ${
+        className={`fixed inset-x-0 top-14 z-40 md:hidden transition-all text-white mt-2 ${
           open
             ? 'pointer-events-auto opacity-100'
             : 'pointer-events-none -translate-y-2 opacity-0'
@@ -113,7 +115,8 @@ export default function Navbar() {
             <div className="mt-2 border-t border-white/10 pt-2 flex gap-2">
               {auth?.user ? (
                 <Link
-                  href={dashboard()}
+                //   href={dashboard()}
+                  href='/dashboard'
                   onClick={() => setOpen(false)}
                   className="flex-1 rounded-xl bg-white/5 px-3 py-2 text-center hover:bg-white/10"
                 >

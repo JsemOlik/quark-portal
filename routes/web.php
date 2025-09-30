@@ -7,6 +7,21 @@ Route::get('/', function () {
     return Inertia::render('welcome');
 })->name('home');
 
+Route::get('/game-hosting', function () {
+    return Inertia::render('game-hosting');
+})->name('game-hosting');
+
+Route::get('/vps', function () {
+    return Inertia::render('vps');
+})->name('vps');
+
+Route::get('/about-us', function () {
+    return Inertia::render('about-us');
+})->name('about-us');
+
+Route::get('/store', function () {
+    return Inertia::render('store/index');
+})->name('store');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', function () {

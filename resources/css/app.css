@@ -59,6 +59,10 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+
+    --color-brand: var(--brand);
+    --color-brand-cream: var(--brand-cream);
+    --color-brand-brown: var(--brand-brown);
 }
 
 :root {
@@ -95,10 +99,13 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.87 0 0);
+    --brand: oklch(0.7123 0.1602 52.23);
+    --brand-cream: oklch(0.9552 0.0329 70.35);
+    --brand-brown: oklch(0.17 0.0053 67.46);
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
+    --background: oklch(17.00% 0.005 67.46);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.145 0 0);
     --card-foreground: oklch(0.985 0 0);
@@ -130,7 +137,9 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(0.269 0 0);
     --sidebar-ring: oklch(0.439 0 0);
-    --brand: oklch(65.73% 0.1542 51.34);
+    --brand: oklch(0.7123 0.1602 52.23);
+    --brand-cream: oklch(0.9552 0.0329 70.35);
+    --brand-brown: oklch(0.17 0.0053 67.46);
 }
 
 @layer base {
@@ -141,4 +150,56 @@
     body {
         @apply bg-background text-foreground;
     }
+}
+
+
+
+
+
+.marquee-track {
+  display: flex;
+  gap: 0.75rem; /* 12px, matches Tailwind gap-3 */
+  min-width: max-content;
+  animation-duration: 35s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.marquee-left {
+  animation-name: marquee-left;
+}
+
+.marquee-right {
+  animation-name: marquee-right;
+}
+
+/* Pause on hover of the row */
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+@keyframes marquee-left {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes marquee-right {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* Reduced motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none !important;
+    transform: none !important;
+  }
 }
