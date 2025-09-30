@@ -1,107 +1,63 @@
-import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem } from '@/types';
+import React from 'react';
 import { Head, Link } from '@inertiajs/react';
-import { ArrowRight } from 'lucide-react';
+import Navbar from '@/components/navbar';
+import { formatGameName } from '@/lib/utils/formatGameName';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Servers',
-        href: '/servers',
-    },
-];
+type Server = {
+  id: number;
+  name: string;
+  game: string;
+  billing_cycle: 'monthly' | 'yearly';
+  pending_billing_cycle?: 'monthly' | 'yearly' | null;
+  status: string;
+  created_at: string;
+};
 
-const cols =
-  "[grid-template-columns:1.6fr_1fr_1fr_.8fr_.9fr_auto]"; // 5 data cols + auto arrow
-
-const userServers = [
-    {
-        id: 1,
-        name: 'Minecraft Survival',
-        nextPayment: '2025-10-15',
-        billingCycle: 'Monthly',
-        price: '$12.99',
-        status: 'Active',
-    },
-    {
-        id: 2,
-        name: 'Valheim Adventure',
-        nextPayment: '2025-10-02',
-        billingCycle: 'Quarterly',
-        price: '$34.99',
-        status: 'Active',
-    },
-    {
-        id: 3,
-        name: 'Rust PvP',
-        nextPayment: '2025-09-30',
-        billingCycle: 'Monthly',
-        price: '$15.99',
-        status: 'Suspended',
-    },
-];
-
-function statusStyles(status: string) {
-    if (status === 'Active') {
-        return 'bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-300';
-    }
-    if (status === 'Suspended') {
-        return 'bg-red-200 text-red-800 dark:bg-red-900 dark:text-red-300';
-    }
-    return 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-}
-
-export default function ServersOverview() {
+export default function ServersOverview({ servers = [] as Server[] }: { servers?: Server[] }) {
   return (
-    <AppLayout breadcrumbs={breadcrumbs}>
+    <>
       <Head title="Your Game Servers" />
-      <div className="flex h-full flex-1 flex-col gap-6 overflow-x-auto rounded-xl p-4">
-        <h1 className="text-2xl font-bold mb-4 mt-2">Your Purchased Servers</h1>
-        <div className="rounded-xl shadow-lg bg-card dark:bg-card p-4">
-          {/* Header row */}
-          <div
-            className={`grid ${cols} gap-4 px-2 py-3 border-b border-border dark:border-sidebar-border font-semibold text-lg mb-6`}
-          >
-            <div>Server Name</div>
-            <div>Next Payment</div>
-            <div>Billing Cycle</div>
-            <div>Price</div>
-            <div>Status</div>
-            <div className='text-transparent'>Hey ;&#41;</div> {/* Invisible placeholder for alignment (the html code is a right parenthesis) */}
-          </div>
+      <div className="min-h-screen bg-[#FDFDFC] text-[rgb(255,245,235)] dark:bg-background">
+        <header className="mx-auto w-full max-w-7xl px-4 pt-4">
+          <Navbar />
+        </header>
 
-          {/* Data rows */}
-          <div>
-            {userServers.map((server, idx) => (
-              <Link href={`/servers/${server.id}`}>
+        <section className="relative mx-auto w-full max-w-7xl px-4 pb-12 pt-8">
+          <h1 className="mb-2 text-2xl font-semibold text-brand-cream">Your Purchased Servers</h1>
+          <p className="mb-6 text-brand-cream/80">All services linked to your account.</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {servers.length === 0 && (
+              <div className="md:col-span-2 lg:col-span-3 rounded-2xl border border-white/10 bg-white/5 p-6 text-brand-cream/70">No servers yet.</div>
+            )}
+
+            {servers.map((s) => (
+              <Link key={s.id} href={`/dashboard/servers/${s.id}`} className="block">
                 <div
-                    key={server.id}
-                    className={`grid ${cols} gap-4 px-2 py-4 items-center transition-colors rounded-lg mb-2
-                    ${idx % 2 === 0 ? "bg-gray-50 dark:bg-sidebar hover:bg-gray-100 dark:hover:bg-sidebar-border" : "bg-white dark:bg-sidebar-accent hover:bg-gray-100 dark:hover:bg-sidebar-border"}`}
+                  className="bg-gradient-to-b from-[#201c18]/37 to-background relative rounded-2xl border p-5 text-brand-cream shadow-[0_8px_24px_rgba(0,0,0,0.25)] dark:border-white/10 transition-transform duration-200 hover:scale-102"
+                  style={{ outline: '1px solid var(--brand-brown)' }}
                 >
-                    <div className="font-medium ml-1">{server.name}</div>
-                    <div>{server.nextPayment}</div>
-                    <div>{server.billingCycle}</div>
-                    <div className="font-semibold">{server.price}</div>
-                    <div>
-                    <span
-                        className={`px-3 py-1 rounded-full text-xs font-bold ${statusStyles(
-                        server.status
-                        )}`}
-                    >
-                        {server.status}
-                    </span>
-                    </div>
-
-                    <ArrowRight
-                        className="text-blue-400 justify-self-end"
-                        aria-label="Open server details"
-                    />
+                  <div className="mb-2 text-lg font-semibold">{s.name}</div>
+                  <div className="text-sm text-brand-cream/80 mb-4">
+                    {formatGameName(s.game)} • Billing: {s.billing_cycle}
+                    {s.pending_billing_cycle && s.pending_billing_cycle !== s.billing_cycle && (
+                      <span className="text-brand ml-1">
+                        ({s.pending_billing_cycle} Pending)
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="rounded-full bg-brand/20 px-3 py-1 text-xs font-semibold text-brand capitalize">{s.status}</span>
+                    <span className="text-brand-cream/70 text-xs">Created {new Date(s.created_at).toLocaleDateString()}</span>
+                  </div>
                 </div>
               </Link>
             ))}
           </div>
-        </div>
+        </section>
       </div>
-    </AppLayout>
+    </>
   );
 }
+
+

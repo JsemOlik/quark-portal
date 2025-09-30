@@ -1,371 +1,245 @@
-import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem } from '@/types';
-import { Head, useForm } from '@inertiajs/react';
-import {
-  ArrowRight,
-  Headphones,
-  Plus,
-  X,
-  FileText,
-  Clock3,
-  CheckCircle2,
-} from 'lucide-react';
-import React from 'react';
-
-// shadcn/ui
+import React, { useState } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
+import Navbar from '@/components/navbar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import {
   Select,
-  SelectTrigger,
   SelectContent,
   SelectItem,
+  SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Ticket as TicketIcon } from 'lucide-react';
+import { toast } from 'sonner';
 
-const breadcrumbs: BreadcrumbItem[] = [{ title: 'Tickets', href: '/tickets' }];
-
-type TicketStatus = 'open' | 'waiting' | 'closed';
 type Ticket = {
-  id: string;
-  subject: string;
-  department: string;
-  createdAt: string; // ISO date
-  lastActivity: string; // relative or ISO
-  priority: 'low' | 'normal' | 'high';
-  status: TicketStatus;
+    id: number;
+    title: string;
+    message: string;
+    department: string;
+    status: string;
+    server_name: string | null;
+    created_at: string;
 };
 
-const mockTickets: Ticket[] = [
-  {
-    id: 'tkt_001',
-    subject: 'My server is bricked',
-    department: 'Support',
-    createdAt: '2025-01-05',
-    lastActivity: '10 months ago',
-    priority: 'normal',
-    status: 'open',
-  },
-  {
-    id: 'tkt_002',
-    subject: 'Billing question about last invoice',
-    department: 'Billing',
-    createdAt: '2025-02-12',
-    lastActivity: '8 months ago',
-    priority: 'low',
-    status: 'waiting',
-  },
-  {
-    id: 'tkt_003',
-    subject: 'Feature request: better backups',
-    department: 'Product',
-    createdAt: '2025-03-20',
-    lastActivity: '6 months ago',
-    priority: 'high',
-    status: 'closed',
-  },
-];
+type Server = {
+    id: number;
+    server_name: string;
+};
 
-const cols = '[grid-template-columns:1.6fr_1fr_1fr_.9fr_.9fr_auto]';
+export default function Tickets({ tickets = [], servers = []}: { tickets: Ticket[], servers: Server[], isAdmin?: boolean, csrf: string }) {
+    const [title, setTitle] = useState('');
+    const [message, setMessage] = useState('');
+    const [department, setDepartment] = useState('');
+    const [serverId, setServerId] = useState('');
+    const [errors, setErrors] = useState<Record<string, string>>({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-function statusStyles(status: TicketStatus) {
-  switch (status) {
-    case 'open':
-      return 'bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-300';
-    case 'waiting':
-      return 'bg-yellow-200 text-yellow-900 dark:bg-yellow-900 dark:text-yellow-200';
-    case 'closed':
-    default:
-      return 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-  }
-}
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
 
-export default function TicketsPage() {
-  const [tickets, setTickets] = React.useState<Ticket[]>(mockTickets);
-  const [open, setOpen] = React.useState(false);
+        const newErrors: Record<string, string> = {};
+        if (!title.trim()) newErrors.title = 'Title is required';
+        if (!message.trim()) newErrors.message = 'Message is required';
+        if (!department) newErrors.department = 'Department is required';
 
-  function handleCreated(newTicket: Ticket) {
-    setTickets((prev) => [newTicket, ...prev]);
-    setOpen(false);
-  }
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
 
-  return (
-    <AppLayout breadcrumbs={breadcrumbs}>
-      <Head title="Support Tickets" />
-      <div className="mt-2 flex h-full flex-1 flex-col gap-6 rounded-xl p-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Tickets</h1>
-          <Button
-            onClick={() => setOpen(true)}
-            className="bg-blue-600 text-white hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            New Ticket
-          </Button>
-        </div>
+        setIsSubmitting(true);
+        setErrors({});
 
-        <div className="rounded-xl shadow-lg bg-card dark:bg-card p-4">
-          {/* Header */}
-          <div
-            className={`mb-6 grid ${cols} gap-4 px-2 py-3 border-b border-border dark:border-sidebar-border font-semibold text-lg`}
-          >
-            <div>Subject</div>
-            <div>Department</div>
-            <div>Created</div>
-            <div>Last Activity</div>
-            <div>Status</div>
-            <div className="text-transparent">•</div>
-          </div>
-
-          {/* Rows */}
-          <div>
-            {tickets.map((t, idx) => (
-              <div
-                key={t.id}
-                className={`grid ${cols} gap-4 px-2 py-4 items-center transition-colors rounded-lg mb-2
-                  ${idx % 2 === 0 ? 'bg-gray-50 dark:bg-sidebar' : 'bg-white dark:bg-sidebar-accent'}
-                  hover:bg-gray-100 dark:hover:bg-sidebar-border`}
-              >
-                <div className="font-medium ml-1">{t.subject}</div>
-                <div className="text-muted-foreground">{t.department}</div>
-                <div>{t.createdAt}</div>
-                <div className="text-muted-foreground">{t.lastActivity}</div>
-                <div>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-bold ${statusStyles(
-                      t.status
-                    )}`}
-                  >
-                    {labelForStatus(t.status)}
-                  </span>
-                </div>
-                <ArrowRight
-                  className="text-blue-400 justify-self-end"
-                  aria-label={`Open ticket ${t.id}`}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {open && (
-        <NewTicketModal onClose={() => setOpen(false)} onCreated={handleCreated} />
-      )}
-    </AppLayout>
-  );
-}
-
-function labelForStatus(s: TicketStatus) {
-  if (s === 'open') return 'Open';
-  if (s === 'waiting') return 'Waiting';
-  return 'Closed';
-}
-
-/* Modal */
-
-function NewTicketModal({
-  onClose,
-  onCreated,
-}: {
-  onClose: () => void;
-  onCreated: (t: Ticket) => void;
-}) {
-  const initialRef = React.useRef<HTMLInputElement | null>(null);
-
-  const { data, setData, processing } = useForm({
-    subject: '',
-    department: 'Support',
-    priority: 'normal' as Ticket['priority'],
-    message: '',
-  });
-
-  React.useEffect(() => {
-    initialRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+        router.post(
+            '/dashboard/tickets',
+            {
+                title,
+                message,
+                department,
+                server_id: serverId || null,
+            },
+            {
+                onSuccess: () => {
+                    setTitle('');
+                    setMessage('');
+                    setDepartment('');
+                    setServerId('');
+                    toast.success('Ticket submitted successfully!');
+                },
+                onError: (errors) => {
+                    setErrors(errors as Record<string, string>);
+                    toast.error('Failed to submit ticket');
+                },
+                onFinish: () => {
+                    setIsSubmitting(false);
+                },
+            }
+        );
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-
-    const newTicket: Ticket = {
-      id: `tkt_${Math.random().toString(36).slice(2, 8)}`,
-      subject: data.subject || 'Untitled',
-      department: data.department,
-      createdAt: new Date().toISOString().slice(0, 10),
-      lastActivity: 'just now',
-      priority: data.priority as Ticket['priority'],
-      status: 'open',
+    const statusClasses = (status: string) => {
+        switch (status) {
+            case 'open':
+                return 'bg-blue-500/10 border-blue-500/20 text-blue-400';
+            case 'closed':
+                return 'bg-gray-500/10 border-gray-500/20 text-gray-400';
+            case 'resolved':
+                return 'bg-green-500/10 border-green-500/20 text-green-400';
+            default:
+                return 'bg-white/5 border-white/10 text-brand-cream/70';
+        }
     };
-    onCreated(newTicket);
-  }
 
-  const canSubmit =
-    data.subject.trim().length > 3 && data.message.trim().length > 5;
+    return (
+        <>
+            <Head title="Support Tickets" />
+            <div className="min-h-screen bg-[#FDFDFC] text-[rgb(255,245,235)] dark:bg-background">
+                <header className="mx-auto w-full max-w-7xl px-4 pt-4">
+                    <Navbar />
+                </header>
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      role="dialog"
-      aria-modal="true"
-    >
-      {/* Backdrop with subtle blur */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      {/* Modal panel */}
-      <div className="relative z-10 w-full max-w-2xl rounded-xl bg-card p-5 shadow-xl">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Headphones className="h-5 w-5 text-blue-400" />
-            <h2 className="text-xl font-semibold">Create Ticket</h2>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="hover:bg-gray-100 dark:hover:bg-sidebar-border"
-            aria-label="Close"
-          >
-            <X />
-          </Button>
-        </div>
+                <section className="relative mx-auto w-full max-w-7xl px-4 pb-12 pt-8">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <Link href="/dashboard" className="text-sm text-brand-cream/70 hover:text-brand">
+                                ← Back to dashboard
+                            </Link>
+                            <h1 className="mt-2 text-2xl font-semibold text-brand-cream">Support Tickets</h1>
+                        </div>
+                    </div>
 
-        <form onSubmit={submit} className="space-y-4">
-          {/* Subject full-width */}
-          <div className="flex flex-col">
-            <Label htmlFor="subject" className="mb-1 text-sm">
-              Subject
-            </Label>
-            <Input
-              ref={initialRef}
-              id="subject"
-              value={data.subject}
-              onChange={(e) => setData('subject', e.target.value)}
-              placeholder="Briefly describe your issue"
-            />
-          </div>
+                    {/* Create Ticket Form */}
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-6 mb-8">
+                        <div className="flex items-center gap-2 mb-4">
+                            <TicketIcon className="h-5 w-5 text-brand" />
+                            <h2 className="text-xl font-semibold text-brand-cream">Create New Ticket</h2>
+                        </div>
 
-          {/* Department and Urgency side-by-side */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1">
-              <Label className="text-sm">Department</Label>
-              <Select
-                value={data.department}
-                onValueChange={(v) => setData('department', v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose department" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Support">Support</SelectItem>
-                  <SelectItem value="Billing">Billing</SelectItem>
-                  <SelectItem value="Abuse">Abuse</SelectItem>
-                  <SelectItem value="Sales">Sales</SelectItem>
-                  <SelectItem value="Product">Product</SelectItem>
-                </SelectContent>
-              </Select>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label htmlFor="title" className="block text-sm font-medium text-brand-cream/90 mb-2">
+                                        Title
+                                    </label>
+                                    <Input
+                                        id="title"
+                                        type="text"
+                                        value={title}
+                                        onChange={(e) => setTitle(e.target.value)}
+                                        placeholder="Brief description of your issue"
+                                        className="bg-white/5 border-white/10 text-brand-cream placeholder:text-brand-cream/40"
+                                    />
+                                    {errors.title && <p className="mt-1 text-sm text-red-400">{errors.title}</p>}
+                                </div>
+
+                                <div>
+                                    <label htmlFor="department" className="block text-sm font-medium text-brand-cream/90 mb-2">
+                                        Department
+                                    </label>
+                                    <Select value={department} onValueChange={setDepartment}>
+                                        <SelectTrigger className="bg-white/5 border-white/10 text-brand-cream">
+                                            <SelectValue placeholder="Select a department" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-[#201c18] border-white/10">
+                                            <SelectItem value="general">General Support</SelectItem>
+                                            <SelectItem value="technical">Technical Support</SelectItem>
+                                            <SelectItem value="billing">Billing</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    {errors.department && <p className="mt-1 text-sm text-red-400">{errors.department}</p>}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label htmlFor="server" className="block text-sm font-medium text-brand-cream/90 mb-2">
+                                    Related Server (Optional)
+                                </label>
+                                <Select value={serverId || undefined} onValueChange={(val) => setServerId(val === 'none' ? '' : val)}>
+                                    <SelectTrigger className="bg-white/5 border-white/10 text-brand-cream">
+                                        <SelectValue placeholder="Select a server" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-[#201c18] border-white/10">
+                                        <SelectItem value="none">None</SelectItem>
+                                        {servers.map((server) => (
+                                            <SelectItem key={server.id} value={server.id.toString()}>
+                                                {server.server_name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <label htmlFor="message" className="block text-sm font-medium text-brand-cream/90 mb-2">
+                                    Message
+                                </label>
+                                <Textarea
+                                    id="message"
+                                    value={message}
+                                    onChange={(e) => setMessage(e.target.value)}
+                                    placeholder="Please describe your issue in detail..."
+                                    rows={6}
+                                    className="bg-white/5 border-white/10 text-brand-cream placeholder:text-brand-cream/40"
+                                />
+                                {errors.message && <p className="mt-1 text-sm text-red-400">{errors.message}</p>}
+                            </div>
+
+                            <Button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="bg-brand text-brand-brown hover:bg-brand/90 font-semibold"
+                            >
+                                {isSubmitting ? 'Submitting...' : 'Submit Ticket'}
+                            </Button>
+                        </form>
+                    </div>
+
+                    {/* Tickets List */}
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+                        <h2 className="text-xl font-semibold text-brand-cream mb-4">Your Tickets</h2>
+
+                        {tickets.length === 0 ? (
+                            <div className="text-center py-8 text-brand-cream/70">
+                                No tickets yet. Create one above to get help from our support team.
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {tickets.map((ticket) => (
+                                    <Link
+                                        key={ticket.id}
+                                        href={`/dashboard/tickets/${ticket.id}`}
+                                        className="block rounded-xl border border-white/10 bg-white/5 p-5 hover:bg-white/10 transition-colors"
+                                    >
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex-1">
+                                                <h3 className="text-lg font-semibold text-brand-cream mb-1">{ticket.title}</h3>
+                                                <div className="flex flex-wrap items-center gap-2 text-sm text-brand-cream/70">
+                                                    <span className="capitalize">{ticket.department}</span>
+                                                    {ticket.server_name && (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span>{ticket.server_name}</span>
+                                                        </>
+                                                    )}
+                                                    <span>•</span>
+                                                    <span>{ticket.created_at}</span>
+                                                </div>
+                                            </div>
+                                            <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize border ${statusClasses(ticket.status)}`}>
+                                                {ticket.status}
+                                            </span>
+                                        </div>
+                                        <p className="text-brand-cream/80 text-sm whitespace-pre-wrap">{ticket.message}</p>
+                                    </Link>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </section>
             </div>
-
-            <div className="flex flex-col gap-1">
-              <Label className="text-sm">Urgency</Label>
-              <Select
-                value={data.priority}
-                onValueChange={(v) =>
-                  setData('priority', v as Ticket['priority'])
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select urgency" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Message */}
-          <div className="flex flex-col">
-            <Label htmlFor="message" className="mb-1 text-sm">
-              Message
-            </Label>
-            <Textarea
-              id="message"
-              value={data.message}
-              onChange={(e) => setData('message', e.target.value)}
-              placeholder="Describe the issue in detail..."
-              className="min-h-[140px]"
-            />
-            <div className="mt-1 text-xs text-muted-foreground">
-              Please avoid sharing secrets or passwords.
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={!canSubmit || processing}
-              className="bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-            >
-              <FileText className="h-4 w-4" />
-              Submit Ticket
-            </Button>
-          </div>
-        </form>
-
-        {/* Helper hints */}
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-          <Hint
-            icon={<CheckCircle2 className="h-4 w-4" />}
-            title="Tips"
-            text="Attach logs, steps to reproduce, and expected vs actual behavior."
-          />
-          <Hint
-            icon={<Clock3 className="h-4 w-4" />}
-            title="Response time"
-            text="Most tickets receive a response within 24 hours."
-          />
-          <Hint
-            icon={<Headphones className="h-4 w-4" />}
-            title="Priority"
-            text="Set High only for outages or billing emergencies."
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Hint({
-  icon,
-  title,
-  text,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  text: string;
-}) {
-  return (
-    <div className="rounded-md border border-border dark:border-sidebar-border p-3">
-      <div className="mb-1 flex items-center gap-2 font-medium">
-        <span className="text-blue-400">{icon}</span>
-        {title}
-      </div>
-      <div className="text-muted-foreground">{text}</div>
-    </div>
-  );
+        </>
+    );
 }
