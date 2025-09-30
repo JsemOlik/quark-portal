@@ -50,9 +50,9 @@ export default function CustomPlanRow({ bill }: { bill: Bill }) {
   if (yearly) price = Math.round(price * 0.85);
 
   return (
-    <div className="rounded-2xl border border-black/15 bg-[#110F0D] p-4 text-white shadow-[0_8px_24px_rgba(0,0,0,0.25)] dark:border-white/10 transition-transform duration-200 hover:scale-101">
+    <div className="rounded-2xl border border-black/15 bg-[#110F0D] p-4 text-brand-cream shadow-[0_8px_24px_rgba(0,0,0,0.25)] dark:border-white/10 transition-transform duration-200 hover:scale-101">
       <div className="mb-3 inline-flex items-center gap-2">
-        <span className="rounded-full bg-brand/80 px-2 py-0.5 text-xs font-semibold">
+        <span className="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-black">
           Custom
         </span>
       </div>
@@ -100,22 +100,22 @@ export default function CustomPlanRow({ bill }: { bill: Bill }) {
         <div className="md:col-span-2 flex flex-col items-end justify-center gap-1">
           <div className="text-3xl font-bold">
             Kč{price}
-            <span className="ml-1 align-middle text-sm font-normal text-white/80">
+            <span className="ml-1 align-middle text-sm font-normal text-brand-cream/80">
               /month
             </span>
           </div>
-          <div className="text-xs text-white/70">Save with annual billing</div>
+          <div className="text-xs text-brand-cream/70">Save with annual billing</div>
         </div>
 
         <div className="md:col-span-2 flex items-center justify-end">
-          <Button className="w-full text-white transition-transform duration-200 hover:scale-105">Configure Server</Button>
+          <Button className="w-full text-brand-cream transition-transform duration-200 hover:scale-105">Configure Server</Button>
         </div>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-12">
         <div className="md:col-span-6">
           <div className="mb-2 flex items-center justify-between">
-            <div className="text-sm text-white/80">RAM</div>
+            <div className="text-sm text-brand-cream/80">RAM</div>
             <div className="text-sm font-semibold">{ram}GB</div>
           </div>
           <Slider
@@ -125,7 +125,7 @@ export default function CustomPlanRow({ bill }: { bill: Bill }) {
             step={1}
             onValueChange={(v) => setRam(v[0] ?? ram)}
           />
-          <div className="mt-1 flex justify-between text-xs text-white/60">
+          <div className="mt-1 flex justify-between text-xs text-brand-cream/60">
             <span>3GB</span>
             <span>32GB</span>
           </div>

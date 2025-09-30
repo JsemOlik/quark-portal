@@ -39,7 +39,7 @@ import AppLogoIcon from './app-logo-icon';
 const mainNavItems: NavItem[] = [
     {
         title: 'Dashboard',
-        href: dashboard(),
+        href: '/dashboard',
         icon: LayoutGrid,
     },
     {
@@ -65,11 +65,11 @@ const rightNavItems: NavItem[] = [
         href: '/',
         icon: ArrowLeft,
     },
-    {
-        title: 'Return to Store',
-        href: '/store',
-        icon: ShoppingCart,
-    },
+    // {
+    //     title: 'Return to Store',
+    //     href: '/store',
+    //     icon: ShoppingCart,
+    // },
 ];
 
 const activeItemStyles =

@@ -35,7 +35,7 @@ export default function Hero() {
         <section className="relative mx-auto w-full max-w-7xl px-4 pt-6 ">
 
             <GradientBackdrop />
-            <div className="relative z-10 text-white">
+            <div className="relative z-10 text-brand-cream">
                 <h1 className="max-w-3xl text-4xl font-semibold leading-tight md:text-6xl">
                     Elevate your next
                     <span className="block text-brand">Game server</span>

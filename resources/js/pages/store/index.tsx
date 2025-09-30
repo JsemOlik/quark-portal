@@ -5,7 +5,7 @@ import { Hero, Specs, ReviewRail, GamesRail, PricingSection, FAQSection } from '
 import { Bill } from './types';
 
 export default function StoreV2() {
-    const [bill, setBill] = React.useState<Bill>('monthly');
+    const [bill, setBill] = React.useState<Bill>('yearly');
 
     return (
         <>
@@ -25,10 +25,10 @@ export default function StoreV2() {
                 <Hero />
 
                 <section className="relative mx-auto w-full pb-14 border-t border-brand-cream/05 pt-14 mb-6">
-                    <h2 className="mb-2 text-2xl font-semibold text-white text-center">
+                    <h2 className="mb-2 text-2xl font-semibold text-brand-cream text-center">
                         Host all your favorite games with Quark
                     </h2>
-                    <p className="mb-14 text-white/80 text-center">
+                    <p className="mb-14 text-brand-cream/80 text-center">
                         Our list isn't exhaustive; if your game isn't listed, just ask, and we'll likely host it!
                     </p>
                     <GamesRail />
@@ -37,10 +37,10 @@ export default function StoreV2() {
                 <Specs />
 
                 <section className="relative mx-auto w-full pb-14 mt-16 mb-16">
-                    <h2 className="mb-4 text-2xl font-semibold text-white text-center">
+                    <h2 className="mb-4 text-2xl font-semibold text-brand-cream text-center">
                         Loved by gamers worldwide
                     </h2>
-                    <p className="mb-4 text-white/80 text-center">
+                    <p className="mb-4 text-brand-cream/80 text-center">
                         Join thousands of satisfied customers who trust our game server
                         hosting needs. See what our community has to say.
                     </p>
@@ -51,13 +51,13 @@ export default function StoreV2() {
 
                 <FAQSection />
 
-                <footer className="mx-auto w-full max-w-7xl px-4 pb-10 text-xs text-white/50">
+                <footer className="mx-auto w-full max-w-7xl px-4 pb-10 text-xs text-brand-cream/50">
                     Prices and specs are indicative. Final performance varies by node and
                     workload. Features may change without notice.
 
                 </footer>
                 <section id='footnotes'>
-                    <footer className="mx-auto w-full max-w-7xl px-4 pb-10 text-xs text-white/50">
+                    <footer className="mx-auto w-full max-w-7xl px-4 pb-10 text-xs text-brand-cream/50">
                         <h1 className='text-lg font-semibold'>Footnotes</h1>
                         <ol className='list-decimal pl-5'>
                             <li>Nodes feature 1 Gbps uplinks to the Internet, delivering "light-speed" throughput.</li>

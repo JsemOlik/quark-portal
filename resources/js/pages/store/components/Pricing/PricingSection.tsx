@@ -14,7 +14,7 @@ export default function PricingSection({
   return (
     <section className="relative mx-auto w-full max-w-7xl px-4 pb-16">
       <div className="mb-6 flex flex-col items-center gap-4 md:flex-row md:justify-between">
-        <h2 className="text-2xl font-semibold text-white">
+        <h2 className="text-2xl font-semibold text-brand-cream">
           Simple, transparent pricing.
         </h2>
         <BillingToggle bill={bill} onChange={onChangeBill} />

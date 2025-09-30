@@ -76,8 +76,8 @@ export default function Specs() {
             <span className="text-brand">Incredible Value.</span>
           </h2>
           <p className="mt-4 text-lg /80">
-            Our AMD Ryzen 5950X powered servers crush the competition, delivering
-            next‑gen performance at just 30Kč per gigabyte. Enjoy instant spin‑ups,
+            Our AMD Ryzen™ 7 5700 powered servers crush the competition, delivering
+            next‑gen performance at just 25Kč per gigabyte. Enjoy instant spin‑ups,
             rock‑solid uptime, and low‑latency connections for a seamless gaming
             experience.
           </p>
@@ -98,24 +98,24 @@ export default function Specs() {
         <div className="p-6">
           <div className="space-y-[-10px]">
             <PerformanceBar
-              brand="Pyro"
-              pricePerGb="Kč63/GB"
-              chip="AMD Ryzen™ 9 9950X"
+              brand="Quark"
+              pricePerGb="25Kč/GB"
+              chip="AMD Ryzen™ 7 5700"
               color="bg-[#EE8132]"
               value={0.98}
               icon={<AppLogoIcon />}
             />
             <PerformanceBar
               brand="Apex Hosting"
-              pricePerGb="Kč104/GB"
-              chip="AMD Ryzen 5800X"
+              pricePerGb="58Kč/GB"
+              chip="Xeon Gold 6348"
               color="bg-[#F6E05E]"
               value={0.55}
               icon={<BrandSquare>A</BrandSquare>}
             />
             <PerformanceBar
               brand="Bisect Hosting"
-              pricePerGb="Kč104/GB"
+              pricePerGb="62Kč/GB"
               chip="Intel Xeon E5-2643"
               color="bg-[#F87171]"
               value={0.32}
@@ -123,7 +123,7 @@ export default function Specs() {
             />
             <PerformanceBar
               brand="GGServers"
-              pricePerGb="Kč125/GB"
+              pricePerGb="124Kč/GB"
               chip="Unknown Ryzen"
               color="bg-[#A0AEC0]"
               value={0.18}

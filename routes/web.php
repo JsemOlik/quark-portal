@@ -4,8 +4,12 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
-    return Inertia::render('welcome');
-})->name('home');
+    return Inertia::render('store/index');
+})->name('store');
+
+Route::get('/configure', function () {
+    return Inertia::render('store/configure');
+})->name('store.configure');
 
 Route::get('/game-hosting', function () {
     return Inertia::render('game-hosting');
@@ -19,9 +23,9 @@ Route::get('/about-us', function () {
     return Inertia::render('about-us');
 })->name('about-us');
 
-Route::get('/store', function () {
-    return Inertia::render('store/index');
-})->name('store');
+// Route::get('/store', function () {
+//     return Inertia::render('store/index');
+// })->name('store');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', function () {

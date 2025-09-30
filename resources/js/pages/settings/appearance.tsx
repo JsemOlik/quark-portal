@@ -26,7 +26,8 @@ export default function Appearance() {
                         title="Appearance settings"
                         description="Update your account's appearance settings"
                     />
-                    <AppearanceTabs />
+                    {/* <AppearanceTabs /> */}
+                    <p>Too bad, we like dark mode :&#41;</p>
                 </div>
             </SettingsLayout>
         </AppLayout>

@@ -7,11 +7,23 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@font-face {
+    font-family: 'Yaro';
+    src: local('Yaro Cut Black'), local('Yaro-Cut-Black'),
+        url('/YaroCut-Black.woff2') format('woff2'),
+        url('/YaroCut-Black.woff') format('woff'),
+        url('/YaroCut-Black.ttf') format('truetype');
+    font-weight: 900;
+    font-style: normal;
+  }
+
 @theme {
     --font-sans:
         'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
+
+    --font-yaro: 'Yaro', sans-serif;
 
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
