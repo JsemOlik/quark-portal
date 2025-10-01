@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ProvisionServer;
 use App\Models\Server;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,11 +14,11 @@ class CheckoutController extends Controller
 {
     public function start(Request $request)
     {
-
         $validated = $request->validate([
             'plan' => ['required', 'string'],
             'billing' => ['required', 'in:monthly,yearly'],
             'game' => ['required', 'string'],
+            'game_variant' => ['nullable', 'string'], // conditional requirement below
             'server_name' => ['required', 'string', 'max:100'],
             'region' => ['required', 'string'],
             'billing_name' => ['required', 'string', 'max:100'],
@@ -27,9 +28,41 @@ class CheckoutController extends Controller
             'save_billing_info' => ['nullable', 'in:0,1'],
         ]);
 
+        $gamesCfg = Config::get('games');
+        $gameId = $validated['game'];
+
+        if (!isset($gamesCfg[$gameId])) {
+            abort(400, 'Invalid game.');
+        }
+
+        $variantKey = $validated['game_variant'] ?? null;
+        $variants = $gamesCfg[$gameId]['variants'] ?? null;
+        $requiresVariant = is_array($variants) && count($variants) > 1;
+
+        $request->validate([
+            'game_variant' => [
+                function ($attr, $value, $fail) use ($requiresVariant, $variants) {
+                    if ($requiresVariant) {
+                        if (!$value || !is_string($value) || !isset($variants[$value])) {
+                            $fail('Please select a valid variant for the chosen game.');
+                        }
+                    }
+                },
+            ],
+        ]);
+
+        if (is_array($variants) && count($variants) > 0) {
+            if ($requiresVariant) {
+                $variantKey = $variantKey;
+            } else {
+                $variantKey = array_key_first($variants);
+            }
+        } else {
+            $variantKey = null;
+        }
+
         $user = Auth::user();
 
-        // Save billing info to user account if requested
         if (isset($validated['save_billing_info']) && $validated['save_billing_info'] === '1') {
             $user->update([
                 'billing_address' => $validated['billing_address'],
@@ -38,7 +71,6 @@ class CheckoutController extends Controller
             ]);
         }
 
-        // Map plan -> Stripe price id
         $prices = Config::get('plans.prices');
         if (!isset($prices[$validated['plan']])) {
             abort(400, 'Invalid plan.');
@@ -46,19 +78,20 @@ class CheckoutController extends Controller
 
         $priceId = $prices[$validated['plan']][$validated['billing']];
 
-        // Create a pending server record
+        // Create a server placeholder but DO NOT provision yet
         $server = Server::create([
             'user_id' => $user->id,
             'plan_id' => $validated['plan'],
             'plan_tier' => strtoupper($validated['plan']),
-            'game' => $validated['game'],
+            'game' => $gameId,
+            'game_variant' => $variantKey,
             'region' => $validated['region'],
             'server_name' => $validated['server_name'],
             'billing_cycle' => $validated['billing'],
             'status' => 'pending',
+            'provision_status' => 'pending',
         ]);
 
-        // Start Stripe Checkout via Cashier using a unique subscription name per server
         $subName = 'server_' . $server->id;
         $checkout = $user->newSubscription($subName, $priceId)
             ->checkout([
@@ -68,6 +101,8 @@ class CheckoutController extends Controller
 
         $server->stripe_checkout_id = $checkout->id;
         $server->save();
+
+        // IMPORTANT: do NOT dispatch provisioning here
 
         return redirect($checkout->url);
     }
@@ -85,29 +120,31 @@ class CheckoutController extends Controller
             // Give Cashier a moment to process the webhook and create subscription
             sleep(2);
 
-            // Refresh user to get latest subscriptions
             $request->user()->refresh();
-
             $sub = $request->user()->subscription($subName);
+
+            $provisionNow = false;
 
             if ($sub) {
                 $server->subscription_id = $sub->stripe_id;
                 $server->subscription_name = $subName;
                 $server->status = 'active';
+                $server->save();
 
                 \Log::info('Subscription found via Cashier', [
                     'subscription_id' => $sub->stripe_id,
-                    'server_id' => $server->id
+                    'server_id' => $server->id,
                 ]);
+
+                $provisionNow = true;
             } else {
-                // Fallback: fetch directly from Stripe
+                // Fallback to direct Stripe API
                 $stripe = new StripeClient(config('cashier.secret'));
                 $session = $stripe->checkout->sessions->retrieve($server->stripe_checkout_id, [
-                    'expand' => ['subscription']
+                    'expand' => ['subscription'],
                 ]);
 
                 if (isset($session->subscription)) {
-                    // Extract subscription ID - handle both string and object
                     if (is_string($session->subscription)) {
                         $subscriptionId = $session->subscription;
                     } elseif (is_object($session->subscription) && isset($session->subscription->id)) {
@@ -119,26 +156,34 @@ class CheckoutController extends Controller
                     $server->subscription_id = $subscriptionId;
                     $server->subscription_name = $subName;
                     $server->status = 'active';
+                    $server->save();
 
                     \Log::info('Subscription found via Stripe API', [
                         'subscription_id' => $subscriptionId,
-                        'server_id' => $server->id
+                        'server_id' => $server->id,
                     ]);
+
+                    $provisionNow = true;
                 } else {
                     \Log::warning('No subscription found after checkout', [
                         'server_id' => $server->id,
-                        'checkout_id' => $server->stripe_checkout_id
+                        'checkout_id' => $server->stripe_checkout_id,
                     ]);
 
+                    // Leave server pending and DO NOT provision
                     $server->status = 'pending';
+                    $server->save();
                 }
             }
 
-            $server->save();
+            // Provision only when we have a subscription id and marked active
+            if ($provisionNow) {
+                ProvisionServer::dispatch($server->id);
+            }
         } catch (\Throwable $e) {
             \Log::error('Checkout success error: ' . $e->getMessage(), [
                 'server_id' => $server->id,
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             $server->status = 'pending';
@@ -152,7 +197,9 @@ class CheckoutController extends Controller
     {
         $serverId = (int) $request->query('server');
         if ($serverId) {
-            $server = Server::where('id', $serverId)->where('user_id', Auth::id())->first();
+            $server = Server::where('id', $serverId)
+                ->where('user_id', Auth::id())
+                ->first();
             if ($server) {
                 $server->status = 'cancelled';
                 $server->save();
@@ -162,5 +209,3 @@ class CheckoutController extends Controller
         return redirect()->route('store.configure');
     }
 }
-
-

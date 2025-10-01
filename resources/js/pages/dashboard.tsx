@@ -101,7 +101,7 @@ export default function DashboardPage({
                       <div>
                         <div className="font-semibold text-brand-cream">{s.name}</div>
                         <div className="text-sm text-brand-cream/70">
-                          {formatGameName(s.game)} • Billing: {s.billing_cycle}
+                          {/* {formatGameName(s.game)} • */}Billing: {s.billing_cycle}
                           {s.pending_billing_cycle &&
                             s.pending_billing_cycle !== s.billing_cycle && (
                               <span className="text-brand ml-1">

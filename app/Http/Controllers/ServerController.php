@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
 use Inertia\Inertia;
 use Stripe\StripeClient;
+use App\Services\PterodactylService;
 
 class ServerController extends Controller
 {
@@ -116,6 +117,21 @@ class ServerController extends Controller
 
             $server->status = 'cancelled';
             $server->save();
+
+            try {
+                if ($server->pterodactyl_server_id) {
+                    app(PterodactylService::class)->suspendServer((int) $server->pterodactyl_server_id);
+                    \Log::info('Pterodactyl server suspended after cancel', [
+                        'server_id' => $server->id,
+                        'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('Failed to suspend Pterodactyl server after cancel: ' . $e->getMessage(), [
+                    'server_id' => $server->id,
+                    'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                ]);
+            }
 
             return back()->with('success', 'Server cancelled successfully. Access will remain until the end of the billing period.');
         } catch (\Throwable $e) {
@@ -272,6 +288,22 @@ class ServerController extends Controller
             // if ($removeInvoices) {
             //     \App\Models\Invoice::where('server_id', $server->id)->delete();
             // }
+
+            try {
+                if ($server->pterodactyl_server_id) {
+                    app(PterodactylService::class)->forceDeleteServer((int) $server->pterodactyl_server_id);
+                    \Log::info('Pterodactyl server force-deleted', [
+                        'server_id' => $server->id,
+                        'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                // We’ll proceed with local delete even if remote delete fails, but log for follow-up.
+                \Log::warning('Failed to force-delete Pterodactyl server: ' . $e->getMessage(), [
+                    'server_id' => $server->id,
+                    'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                ]);
+            }
 
             $server->delete();
 

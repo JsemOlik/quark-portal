@@ -550,7 +550,7 @@ export default function TicketDetail({
                     ) : (
                         <div className="rounded-2xl border border-gray-500/20 bg-gray-500/5 p-6 text-center">
                             <p className="text-brand-cream/70">
-                                This ticket is closed. {isAdmin && isOwnTicket ? 'You cannot reply to your own closed ticket.' : 'Admins can still reply to tickets they do not own.'}
+                                This ticket is closed. {isAdmin && isOwnTicket ? 'To contact support, please make a new ticket.' : 'To contact support, please make a new ticket.'}
                             </p>
                         </div>
                     )}

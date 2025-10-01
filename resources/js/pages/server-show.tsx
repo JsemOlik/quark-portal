@@ -119,9 +119,9 @@ export default function ServerShow({
             {server.name}
           </h1>
           <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-brand-cream/80">
-            <span className="rounded-full bg-white/5 px-3 py-1 border border-white/10">
+            {/* <span className="rounded-full bg-white/5 px-3 py-1 border border-white/10">
               {formatGameName(server.game)}
-            </span>
+            </span> */}
             <span className="rounded-full bg-white/5 px-3 py-1 border border-white/10 capitalize">
               {server.billing_cycle}
               {server.pending_billing_cycle &&
@@ -313,16 +313,16 @@ export default function ServerShow({
                           variant="destructive"
                           className="rounded-xl bg-red-700 hover:bg-red-800"
                         >
-                          Remove from account
+                          Delete server
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="bg-[#201c18] border-white/10">
                         <DialogHeader>
                           <DialogTitle className="text-brand-cream">
-                            Remove Server
+                            Delete Server
                           </DialogTitle>
                           <DialogDescription className="text-brand-cream/70">
-                            This will permanently remove this server from your
+                            This will permanently delete this server and remove it from your
                             account. This action cannot be undone.
                           </DialogDescription>
                         </DialogHeader>
@@ -332,12 +332,12 @@ export default function ServerShow({
                               Important:
                             </p>
                             <p className="mb-1">
-                              • The server record and its links will be deleted
+                              • The server and all of it's data will be DELETED
                             </p>
                             <p className="mb-1">
                               • You will no longer see it in your dashboard
                             </p>
-                            <p>• This cannot be reversed</p>
+                            <p>• This CANNOT be reversed</p>
                           </div>
 
                           {/* <div className="flex items-center gap-3">
@@ -361,7 +361,7 @@ export default function ServerShow({
                           <Button
                             variant="ghost"
                             onClick={() => setRemoveDialogOpen(false)}
-                            className="rounded-xl text-brand-cream"
+                            className="rounded-xl text-brand-cream mr-3"
                           >
                             Keep it
                           </Button>
@@ -381,8 +381,8 @@ export default function ServerShow({
                             className="rounded-xl bg-red-600 hover:bg-red-700"
                           >
                             {loading === 'remove'
-                              ? 'Removing...'
-                              : 'Yes, remove'}
+                              ? 'Deleting...'
+                              : 'Yes, delete'}
                           </Button>
                         </DialogFooter>
                       </DialogContent>
@@ -434,7 +434,7 @@ export default function ServerShow({
                       #{server.id}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center py-2 border-b border-white/5">
+                   <div className={"flex justify-between items-center py-2 {/*border-b border-white/5*/}"}>
                     <span className="text-sm text-brand-cream/60">
                       Created
                     </span>
@@ -442,12 +442,12 @@ export default function ServerShow({
                       {new Date(server.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center py-2">
+                  {/* <div className="flex justify-between items-center py-2">
                     <span className="text-sm text-brand-cream/60">Game</span>
                     <span className="text-sm font-medium text-brand-cream">
                       {formatGameName(server.game)}
                     </span>
-                  </div>
+                  </div> */}
                 </div>
               </div>
 

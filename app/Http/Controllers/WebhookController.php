@@ -138,5 +138,14 @@ class WebhookController extends CashierController
             'past_due', 'unpaid' => $server->update(['status' => 'suspended']),
             default => null,
         };
+
+        // If subscription is active and server not yet provisioned, dispatch
+        if ($status === 'active' && empty($server->pterodactyl_server_id)) {
+            \App\Jobs\ProvisionServer::dispatch($server->id);
+            \Log::info('Provision dispatched from webhook', [
+                'server_id' => $server->id,
+                'subscription_id' => $subscriptionId,
+            ]);
+        }
     }
 }

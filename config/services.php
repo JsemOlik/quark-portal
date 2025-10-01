@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'pterodactyl' => [
+        'url' => env('PTERO_URL'),
+        'app_key' => env('PTERO_APP_KEY'),
+    ],
+
 ];
