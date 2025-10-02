@@ -24,7 +24,7 @@ class Server extends Model
     //     'status',
     // ];
 
-        protected $fillable = [
+    protected $fillable = [
         'user_id',
         'plan_id',
         'plan_tier',
@@ -50,6 +50,11 @@ class Server extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function plan()
+    {
+        return $this->belongsTo(\App\Models\Plan::class);
     }
 }
 

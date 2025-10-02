@@ -1,4 +1,5 @@
-export type Bill = 'monthly' | 'yearly';
+// store/types.ts
+export type IntervalKey = 'monthly' | 'quarterly' | 'semi_annual' | 'annual';
 
 export type Review = {
   id: string;
@@ -8,10 +9,12 @@ export type Review = {
   rating: number;
 };
 
-export type Plan = {
-  id: string;
-  tier: 'Core' | 'Boost' | 'Power' | 'Extreme';
-  priceCZK: number;
+// Data for pricing cards coming from the server (Inertia props)
+export type PlanCardData = {
+  id: string; // plan key (e.g., 'core')
+  tier: 'Core' | 'Boost' | 'Power' | 'Extreme' | string; // human name
+  intervals: Partial<Record<IntervalKey, number>>; // minor units (e.g., CZK)
+  currency: string; // e.g., 'czk'
   popular?: boolean;
   cpu: string;
   vcores: string;
@@ -19,7 +22,6 @@ export type Plan = {
   storage: string;
   backups: string;
   ports: string;
-  ctaHref: string;
 };
 
 export type Game = {

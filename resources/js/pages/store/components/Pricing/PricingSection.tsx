@@ -1,5 +1,6 @@
+// store/components/Pricing/PricingSection.tsx
 import React from 'react';
-import { Bill } from '../../types';
+import { IntervalKey, PlanCardData } from '../../types';
 import BillingToggle from './BillingToggle';
 import PlansGrid from './PlansGrid';
 import CustomPlanRow from './CustomPlanRow';
@@ -7,9 +8,13 @@ import CustomPlanRow from './CustomPlanRow';
 export default function PricingSection({
   bill,
   onChangeBill,
+  plans,
+  currency,
 }: {
-  bill: Bill;
-  onChangeBill: (b: Bill) => void;
+  bill: IntervalKey;
+  onChangeBill: (b: IntervalKey) => void;
+  plans: PlanCardData[];
+  currency: string;
 }) {
   return (
     <section className="relative mx-auto w-full max-w-7xl px-4 pb-16">
@@ -20,7 +25,7 @@ export default function PricingSection({
         <BillingToggle bill={bill} onChange={onChangeBill} />
       </div>
 
-      <PlansGrid bill={bill} />
+      <PlansGrid bill={bill} plans={plans} currency={currency} />
 
       <div className="mt-8">
         <CustomPlanRow bill={bill} />

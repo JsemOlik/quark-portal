@@ -4,12 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ProvisionServer;
 use App\Models\Server;
+use App\Models\Plan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
 use Inertia\Inertia;
 use Stripe\StripeClient;
-use App\Models\Plan;
 
 class CheckoutController extends Controller
 {
@@ -17,9 +17,9 @@ class CheckoutController extends Controller
     {
         $validated = $request->validate([
             'plan' => ['required', 'string'],
-            'billing' => ['required', 'in:monthly,yearly'],
+            'billing' => ['required', 'in:monthly,quarterly,semi_annual,yearly'],
             'game' => ['required', 'string'],
-            'game_variant' => ['nullable', 'string'], // conditional requirement below
+            'game_variant' => ['nullable', 'string'],
             'server_name' => ['required', 'string', 'max:100'],
             'region' => ['required', 'string'],
             'billing_name' => ['required', 'string', 'max:100'],
@@ -31,7 +31,6 @@ class CheckoutController extends Controller
 
         $gamesCfg = Config::get('games');
         $gameId = $validated['game'];
-
         if (!isset($gamesCfg[$gameId])) {
             abort(400, 'Invalid game.');
         }
@@ -53,9 +52,7 @@ class CheckoutController extends Controller
         ]);
 
         if (is_array($variants) && count($variants) > 0) {
-            if ($requiresVariant) {
-                $variantKey = $variantKey;
-            } else {
+            if (!$requiresVariant) {
                 $variantKey = array_key_first($variants);
             }
         } else {
@@ -64,7 +61,7 @@ class CheckoutController extends Controller
 
         $user = Auth::user();
 
-        if (isset($validated['save_billing_info']) && $validated['save_billing_info'] === '1') {
+        if (($validated['save_billing_info'] ?? '0') === '1') {
             $user->update([
                 'billing_address' => $validated['billing_address'],
                 'billing_city' => $validated['billing_city'],
@@ -73,25 +70,28 @@ class CheckoutController extends Controller
         }
 
         $plan = Plan::where('key', $validated['plan'])->where('active', true)->first();
-        if (!$plan) {
+        if (!$plan)
             abort(400, 'Invalid plan.');
-        }
 
-        // If you support multiple currencies, choose one (e.g., from user or app setting)
+        // Select a currency (extend if you want per-user settings)
         $currency = config('quark_plans.currency', 'czk');
 
-        $planPrice = $plan->priceFor($validated['billing'], $currency);
-        if (!$planPrice) {
+        $interval = match ($validated['billing']) {
+            'yearly' => 'annual',
+            default => $validated['billing'],
+        };
+        // $interval = $validated['billing'] === 'yearly' ? 'annual' : $validated['billing'];
+
+        $planPrice = $plan->priceFor($interval, $currency);
+        if (!$planPrice)
             abort(400, 'No price configured for this plan/interval.');
-        }
 
         $priceId = $planPrice->stripe_price_id;
 
-        // Create a server placeholder but DO NOT provision yet
         $server = Server::create([
             'user_id' => $user->id,
-            'plan_id' => $validated['plan'],
-            'plan_tier' => strtoupper($validated['plan']),
+            'plan_id' => $plan->id,
+            'plan_tier' => strtoupper($plan->key),
             'game' => $gameId,
             'game_variant' => $variantKey,
             'region' => $validated['region'],
@@ -102,6 +102,7 @@ class CheckoutController extends Controller
         ]);
 
         $subName = 'server_' . $server->id;
+
         $checkout = $user->newSubscription($subName, $priceId)
             ->allowPromotionCodes()
             ->checkout([
@@ -111,8 +112,6 @@ class CheckoutController extends Controller
 
         $server->stripe_checkout_id = $checkout->id;
         $server->save();
-
-        // IMPORTANT: do NOT dispatch provisioning here
 
         return redirect($checkout->url);
     }
@@ -127,7 +126,6 @@ class CheckoutController extends Controller
         try {
             $subName = 'server_' . $server->id;
 
-            // Give Cashier a moment to process the webhook and create subscription
             sleep(2);
 
             $request->user()->refresh();
@@ -148,7 +146,6 @@ class CheckoutController extends Controller
 
                 $provisionNow = true;
             } else {
-                // Fallback to direct Stripe API
                 $stripe = new StripeClient(config('cashier.secret'));
                 $session = $stripe->checkout->sessions->retrieve($server->stripe_checkout_id, [
                     'expand' => ['subscription'],
@@ -180,13 +177,11 @@ class CheckoutController extends Controller
                         'checkout_id' => $server->stripe_checkout_id,
                     ]);
 
-                    // Leave server pending and DO NOT provision
                     $server->status = 'pending';
                     $server->save();
                 }
             }
 
-            // Provision only when we have a subscription id and marked active
             if ($provisionNow) {
                 ProvisionServer::dispatch($server->id);
             }

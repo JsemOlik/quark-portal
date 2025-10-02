@@ -77,10 +77,20 @@ class ProvisionServer implements ShouldQueue
             $gameId = $server->game;
             $region = $server->region;
 
-            $resources = Config::get("plans.resources.$planId");
-            if (!$resources) {
-                throw new \RuntimeException("Missing resources config for plan: $planId");
+            $plan = $server->plan()->first(); // ensure you have a belongsTo relation
+            if (!$plan) {
+                throw new \RuntimeException("Server plan not found (server {$server->id}).");
             }
+            $planKey = $plan->key;
+            $resources = Config::get("plans.resources.$planKey");
+            if (!$resources) {
+                throw new \RuntimeException("Missing resources config for plan key: {$planKey}");
+            }
+
+            // $resources = Config::get("plans.resources.$planId");
+            // if (!$resources) {
+            //     throw new \RuntimeException("Missing resources config for plan: $planId");
+            // }
 
             $gameCfg = Config::get("games.$gameId");
             if (!$gameCfg) {
@@ -198,10 +208,13 @@ class ProvisionServer implements ShouldQueue
 
     protected function interpolateEnv(string $value, Server $server): string
     {
-        // Replace placeholders like {{SERVER_NAME}} and {{SERVER_MEMORY}}
+        $plan = $server->plan()->first();
+        $planKey = $plan?->key;
+        $memory = (int) (config("plans.resources.{$planKey}.memory_mb") ?? 1024);
+
         $map = [
             '{{SERVER_NAME}}' => $server->server_name,
-            '{{SERVER_MEMORY}}' => (string) (config("plans.resources.{$server->plan_id}.memory_mb") ?? 1024),
+            '{{SERVER_MEMORY}}' => (string) $memory,
         ];
 
         return strtr($value, $map);

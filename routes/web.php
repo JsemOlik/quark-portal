@@ -2,24 +2,99 @@
 
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Models\Plan;
 use App\Http\Controllers\Admin\PlanController as AdminPlanController;
 // use App\Http\Controllers\Admin\PlanPriceController as AdminPlanPriceController;
 // use App\Http\Middleware\EnsureAdmin;
 
 Route::get('/', function () {
-    return Inertia::render('store/index');
+    $currency = config('quark_plans.currency', 'czk');
+
+    $plans = Plan::with(['activePrices' => function ($q) use ($currency) {
+        $q->where('currency', $currency);
+    }])->where('active', true)->get();
+
+    // Merge spec text from config (cpu/ram/storage/etc) with DB pricing
+    $specsByKey = collect(config('quark_plans.plans', []))
+        ->keyBy('key')
+        ->map(function ($p) {
+            return [
+                'key' => $p['key'],
+                'name' => $p['name'],
+                'description' => $p['description'] ?? '',
+                'intervals' => $p['intervals'] ?? [],
+                // optional: add non-price specs here if you store them in config:
+                'cpu' => $p['cpu'] ?? 'AMD EPYC',
+                'vcores' => $p['vcores'] ?? '2 vCores',
+                'ram' => $p['ram'] ?? '4GB DDR4',
+                'storage' => $p['storage'] ?? 'NVMe Storage',
+                'backups' => $p['backups'] ?? 'Automatic Backups',
+                'ports' => $p['ports'] ?? 'Dedicated Ports',
+                'popular' => (bool)($p['popular'] ?? false),
+            ];
+        });
+
+    $planCards = $plans->map(function ($plan) use ($specsByKey) {
+        $spec = $specsByKey->get($plan->key, []);
+        // Map activePrices -> intervals map: interval => unit_amount
+        $intervalMap = collect($plan->activePrices)
+            ->mapWithKeys(fn($pp) => [$pp->interval => (int)$pp->unit_amount]);
+
+        return [
+            'id' => $plan->key,           // keep the key for URLs
+            'tier' => $plan->name,
+            'intervals' => $intervalMap,  // monthly/quarterly/semi_annual/annual => integer amount (minor units)
+            'currency' => 'czk',
+            // Attach specs (used by PlanCard)
+            'cpu' => $spec['cpu'] ?? '',
+            'vcores' => $spec['vcores'] ?? '',
+            'ram' => $spec['ram'] ?? '',
+            'storage' => $spec['storage'] ?? '',
+            'backups' => $spec['backups'] ?? '',
+            'ports' => $spec['ports'] ?? '',
+            'popular' => $spec['popular'] ?? false,
+        ];
+    })->values();
+
+    return Inertia::render('store/index', [
+        'plans' => $planCards,
+        'currency' => $currency,
+    ]);
 })->name('store');
 
 Route::get('/configure', function (\Illuminate\Http\Request $request) {
     $billRaw = $request->query('bill');
-    $bill = is_string($billRaw) ? strtolower(trim($billRaw)) : 'yearly';
-    if (!in_array($bill, ['monthly', 'yearly'], true)) {
+    $bill = is_string($billRaw) ? strtolower(trim($billRaw)) : 'annual';
+    if (!in_array($bill, ['monthly', 'quarterly', 'semi_annual', 'annual'], true)) {
         abort(400, 'Invalid billing cycle.');
     }
+
+    $currency = config('quark_plans.currency', 'czk');
+    $plans = \App\Models\Plan::with(['activePrices' => function ($q) use ($currency) {
+        $q->where('currency', $currency);
+    }])->where('active', true)->get();
+
+    $planOptions = $plans->map(function ($plan) {
+        return [
+            'id' => $plan->key,
+            'name' => $plan->name,
+        ];
+    });
+
+    $priceMatrix = $plans->mapWithKeys(function ($plan) {
+        $map = collect($plan->activePrices)->mapWithKeys(fn($pp) => [
+            $pp->interval => (int)$pp->unit_amount,
+        ]);
+        return [$plan->key => $map];
+    });
+
     return Inertia::render('store/configure', [
         'initialPlan' => (string) $request->query('plan', ''),
         'initialBill' => $bill,
         'csrf' => csrf_token(),
+        'planOptions' => $planOptions,
+        'priceMatrix' => $priceMatrix,
+        'currency' => $currency,
     ]);
 })->middleware(['auth'])->name('store.configure');
 
@@ -155,52 +230,11 @@ Route::middleware(['auth', 'verified'])->prefix('dashboard')->name('dashboard.')
     Route::get('invoices', function () {
         return Inertia::render('invoices');
     })->name('invoices');
-
-    Route::get('tickets', [\App\Http\Controllers\TicketController::class, 'index'])
-        ->name('tickets');
-    Route::post('tickets', [\App\Http\Controllers\TicketController::class, 'store'])
-        ->name('tickets.store');
-    Route::get('tickets/{ticket}', [\App\Http\Controllers\TicketController::class, 'show'])
-        ->name('tickets.show');
-    Route::post('tickets/{ticket}/reply', [\App\Http\Controllers\TicketController::class, 'reply'])
-        ->name('tickets.reply');
-
-    // Resolve and delete (owner-only)
-    Route::post('tickets/{ticket}/resolve', [\App\Http\Controllers\TicketController::class, 'resolve'])
-        ->name('tickets.resolve');
-    Route::post('tickets/{ticket}/open', [\App\Http\Controllers\TicketController::class, 'open'])
-        ->name('tickets.open');
-    Route::post('tickets/{ticket}/delete', [\App\Http\Controllers\TicketController::class, 'destroy'])
-        ->name('tickets.destroy');
-
-    // Admin ticket routes
-    Route::get('admin/tickets', [\App\Http\Controllers\TicketController::class, 'adminIndex'])
-        ->name('admin.tickets');
-    Route::post('admin/tickets/{ticket}/reply', [\App\Http\Controllers\TicketController::class, 'adminReply'])
-        ->name('admin.tickets.reply');
-    Route::post('admin/tickets/{ticket}/status', [\App\Http\Controllers\TicketController::class, 'adminSetStatus'])
-        ->name('admin.tickets.status');
 });
-
-Route::middleware(['auth', \App\Http\Middleware\EnsureAdmin::class])
-    ->prefix('admin')
-    ->name('admin.')
-    ->group(function () {
-        Route::get('/plans', [AdminPlanController::class, 'index'])->name('plans.index');
-        Route::get('/plans/{plan}', [AdminPlanController::class, 'show'])->name('plans.show');
-        Route::post('/plans', [AdminPlanController::class, 'store'])->name('plans.store');
-        Route::put('/plans/{plan}', [AdminPlanController::class, 'update'])->name('plans.update');
-        Route::delete('/plans/{plan}', [AdminPlanController::class, 'destroy'])->name('plans.destroy');
-
-        Route::post('/plans/sync', [AdminPlanController::class, 'sync'])->name('plans.sync');
-
-        Route::post('/plans/{plan}/prices', [\App\Http\Controllers\Admin\PlanPriceController::class, 'store'])->name('plan_prices.store');
-        Route::put('/plans/{plan}/prices/{price}', [\App\Http\Controllers\Admin\PlanPriceController::class, 'update'])->name('plan_prices.update');
-        Route::delete('/plans/{plan}/prices/{price}', [\App\Http\Controllers\Admin\PlanPriceController::class, 'destroy'])->name('plan_prices.destroy');
-    });
 
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';
+require __DIR__ . '/tickets.php';
 
 // Stripe webhooks (Cashier)
 Route::post('/stripe/webhook', [\App\Http\Controllers\WebhookController::class, 'handleWebhook']);

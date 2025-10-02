@@ -21,7 +21,13 @@ class StripeSyncPlans extends Command
 
         $dry = (bool) $this->option('dry-run');
 
-        $stripe = new StripeClient(config('cashier.secret'));
+        $secret = config('cashier.secret') ?? config('services.stripe.secret') ?? env('STRIPE_SECRET');
+        if (!$secret) {
+            $this->error('Stripe secret missing. Ensure STRIPE_SECRET or config(cashier.secret) is set.');
+            return Command::FAILURE;
+        }
+
+        $stripe = new StripeClient($secret);
 
         DB::beginTransaction();
 
@@ -43,7 +49,7 @@ class StripeSyncPlans extends Command
                 // Ensure Stripe Product exists
                 if (empty($plan->stripe_product_id)) {
                     if ($dry) {
-                        $this->info("[dry-run] Would create Product for plan {$key}");
+                        $this->info("[dry-run] Would create Stripe Product for plan {$key}");
                         $productId = 'prod_dry_' . $key;
                     } else {
                         $product = $stripe->products->create([
@@ -56,7 +62,6 @@ class StripeSyncPlans extends Command
                     $plan->stripe_product_id = $productId;
                     $plan->save();
                 } else {
-                    // Optionally update product name/active if needed
                     if (!$dry) {
                         $stripe->products->update($plan->stripe_product_id, [
                             'name' => $name,
@@ -65,68 +70,117 @@ class StripeSyncPlans extends Command
                     }
                 }
 
-                // Sync Prices per interval
-                foreach ($intervals as $interval => $amount) {
-                    // Map intervals to Stripe recurrence
-                    [$intervalCount, $intervalUnit] = $this->mapInterval($interval);
+                // Sync Prices per interval (single currency)
+                // foreach ($intervals as $interval => $amount) {
+                //     [$intervalCount, $intervalUnit] = $this->mapInterval($interval);
 
-                    // Find active price for this plan/interval/currency
-                    $existing = PlanPrice::where('plan_id', $plan->id)
-                        ->where('interval', $interval)
-                        ->where('currency', $currency)
-                        ->where('active', true)
-                        ->first();
+                //     $existing = PlanPrice::where('plan_id', $plan->id)
+                //         ->where('interval', $interval)
+                //         ->where('currency', $currency)
+                //         ->where('active', true)
+                //         ->first();
 
-                    $needNewPrice = false;
+                //     $needNewPrice = false;
 
-                    if ($existing) {
-                        // If amount changed, we need a new Stripe price (immutable)
-                        if ((int) $existing->unit_amount !== (int) $amount) {
-                            $needNewPrice = true;
-                            $this->info("Price changed for {$key} {$interval}: {$existing->unit_amount} -> {$amount}");
-                        } else {
-                            // Keep existing
-                            $this->line("Up-to-date: {$key} {$interval} ({$existing->stripe_price_id})");
-                        }
-                    } else {
-                        $needNewPrice = true;
-                        $this->info("No active price found for {$key} {$interval}, will create.");
-                    }
+                //     if ($existing) {
+                //         if ((int) $existing->unit_amount !== (int) $amount) {
+                //             $needNewPrice = true;
+                //             $this->info("Price changed for {$key} {$interval}: {$existing->unit_amount} -> {$amount}");
+                //         } else {
+                //             $this->line("Up-to-date: {$key} {$interval} ({$existing->stripe_price_id})");
+                //         }
+                //     } else {
+                //         $needNewPrice = true;
+                //         $this->info("No active price for {$key} {$interval}, will create.");
+                //     }
 
-                    if ($needNewPrice) {
-                        if (!$dry) {
-                            $price = $stripe->prices->create([
+                    // Sync Prices per interval (single currency)
+                    foreach ($intervals as $interval => $amount) {
+                        [$intervalCount, $intervalUnit] = $this->mapInterval($interval);
+
+                        $existing = PlanPrice::where('plan_id', $plan->id)
+                            ->where('interval', $interval)
+                            ->where('currency', $currency)
+                            ->where('active', true)
+                            ->first();
+
+                        if ($existing) {
+                            if ((int) $existing->unit_amount === (int) $amount) {
+                                $this->line("Up-to-date: {$key} {$interval} ({$existing->stripe_price_id})");
+                                continue; // nothing to do
+                            }
+
+                            // Amount changed: must create a new Stripe Price (immutable constraint)
+                            if ($dry) {
+                                $this->info("[dry-run] Would update {$key} {$interval}: {$existing->unit_amount} -> {$amount} and replace Stripe price.");
+                                continue;
+                            }
+
+                            // 1) Create a new Stripe Price
+                            $newPrice = $stripe->prices->create([
                                 'unit_amount' => (int) $amount,
                                 'currency' => $currency,
                                 'recurring' => [
-                                    'interval' => $intervalUnit, // 'month' or 'year'
-                                    'interval_count' => $intervalCount, // 1,3,6,1
+                                    'interval' => $intervalUnit,
+                                    'interval_count' => $intervalCount,
                                 ],
                                 'product' => $plan->stripe_product_id,
                                 'active' => true,
                             ]);
 
-                            // Deactivate old active price mapping (local, not on Stripe)
-                            if ($existing) {
-                                $existing->active = false;
-                                $existing->save();
+                            // Optional: deactivate old Stripe price for new usage (keeps existing subs intact)
+                            try {
+                                if (!empty($existing->stripe_price_id)) {
+                                    $stripe->prices->update($existing->stripe_price_id, ['active' => false]);
+                                }
+                            } catch (\Throwable $e) {
+                                $this->warn("Could not deactivate old Stripe price {$existing->stripe_price_id}: {$e->getMessage()}");
                             }
 
-                            PlanPrice::create([
+                            // 2) Update the existing DB row instead of creating a new one
+                            $existing->unit_amount = (int) $amount;
+                            $existing->stripe_price_id = $newPrice->id;
+                            $existing->active = true; // remains the single active row
+                            $existing->save();
+
+                            $this->info("Replaced Price for {$key} {$interval} with {$newPrice->id} ({$amount} {$currency}).");
+                            continue;
+                        }
+
+                        // No existing price row: create fresh
+                        if ($dry) {
+                            $this->info("[dry-run] Would create new Price for {$key} {$interval} amount {$amount}.");
+                            continue;
+                        }
+
+                        $price = $stripe->prices->create([
+                            'unit_amount' => (int) $amount,
+                            'currency' => $currency,
+                            'recurring' => [
+                                'interval' => $intervalUnit,
+                                'interval_count' => $intervalCount,
+                            ],
+                            'product' => $plan->stripe_product_id,
+                            'active' => true,
+                        ]);
+
+                        // Upsert PlanPrice: ensure we have one row per (plan, interval, currency)
+                        PlanPrice::updateOrCreate(
+                            [
                                 'plan_id' => $plan->id,
                                 'interval' => $interval,
                                 'currency' => $currency,
+                            ],
+                            [
                                 'unit_amount' => (int) $amount,
                                 'stripe_price_id' => $price->id,
                                 'active' => true,
-                            ]);
+                            ]
+                        );
 
-                            $this->info("Created Price {$price->id} for {$key} {$interval} ({$amount} {$currency}).");
-                        } else {
-                            $this->info("[dry-run] Would create new Price for {$key} {$interval} amount {$amount}.");
-                        }
+                        $this->info("Created Price {$price->id} for {$key} {$interval} ({$amount} {$currency}).");
                     }
-                }
+                // }
             }
 
             if ($dry) {
@@ -148,7 +202,6 @@ class StripeSyncPlans extends Command
 
     private function mapInterval(string $interval): array
     {
-        // Return [interval_count, interval_unit]
         return match ($interval) {
             'monthly' => [1, 'month'],
             'quarterly' => [3, 'month'],

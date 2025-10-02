@@ -12,12 +12,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { planData } from './data/plans';
 import { formatGameName } from '@/lib/utils/formatGameName';
 
 type Step = 1 | 2;
+type IntervalKey = 'monthly' | 'quarterly' | 'semi_annual' | 'annual';
 
 type VariantMap = Record<string, Array<{ id: string; name: string }>>;
+type PriceMatrix = Record<string, Partial<Record<IntervalKey, number>>>;
 
 const games = [
   { id: 'minecraft', name: 'Minecraft' },
@@ -25,11 +26,9 @@ const games = [
   { id: 'rust', name: 'Rust' },
   { id: 'ark', name: 'ARK: Survival Ascended' },
   { id: 'gmod', name: "Garry's Mod" },
-//   { id: 'valheim', name: 'Valheim' },
 ];
 
 const gameVariants: VariantMap = {
-  // Minecraft variants (Version)
   minecraft: [
     { id: 'paper', name: 'Paper' },
     { id: 'vanilla', name: 'Vanilla' },
@@ -39,26 +38,46 @@ const gameVariants: VariantMap = {
     { id: 'sponge', name: 'Sponge (SpongeVanilla)' },
     { id: 'forge', name: 'Forge' },
   ],
-  // Counter-Strike variants
   counter_strike: [
     { id: 'csgo', name: 'CS:GO' },
     { id: 'cs2', name: 'CS2' },
   ],
-  // No variants for these — we’ll hide the dropdown
   rust: [],
   ark: [],
   gmod: [],
   valheim: [],
 };
 
+const monthsPerCycle: Record<IntervalKey, number> = {
+  monthly: 1,
+  quarterly: 3,
+  semi_annual: 6,
+  annual: 12,
+};
+
+function formatCZKMinorToMajorString(minor: number): string {
+  const major = minor / 100;
+  const parts = major.toFixed(2).split('.');
+  const intPart = parts[0];
+  const decPart = parts[1];
+  const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `${withThousands},${decPart}`;
+}
+
 export default function ConfigureServer({
   csrf,
   initialPlan: planProp,
   initialBill: billProp,
+  planOptions,
+  priceMatrix,
+  currency,
 }: {
   csrf?: string;
   initialPlan?: string;
-  initialBill?: string;
+  initialBill?: IntervalKey;
+  planOptions: Array<{ id: string; name: string }>;
+  priceMatrix: PriceMatrix;
+  currency: string;
 }) {
   const { props } = usePage();
   const user = (props as any).auth?.user as any;
@@ -66,26 +85,38 @@ export default function ConfigureServer({
   const [step, setStep] = React.useState<Step>(1);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
-  const planId = planProp || '';
-  const billing =
-    billProp === 'monthly' || billProp === 'yearly' ? billProp : 'yearly';
+  const planKeys = planOptions.map((p) => p.id.toLowerCase());
+  const initialPlanKey = (planProp || '').toLowerCase();
+  const [planKey, setPlanKey] = React.useState<string>(
+    planKeys.includes(initialPlanKey) ? initialPlanKey : ''
+  );
 
-  const [billingCycle, setBillingCycle] = React.useState<'monthly' | 'yearly'>(
-    billing
-  );
-  const selectedPlan = React.useMemo(
-    () => planData.find((p) => p.id === planId) || null,
-    [planId]
-  );
-  const monthlyPrice = React.useMemo(() => {
-    if (!selectedPlan) return null;
-    const base = selectedPlan.priceCZK;
-    return billingCycle === 'yearly' ? Math.round(base * 0.85) : base;
-  }, [selectedPlan, billingCycle]);
+  const validIntervals: IntervalKey[] = [
+    'monthly',
+    'quarterly',
+    'semi_annual',
+    'annual',
+  ];
+  const billDefault: IntervalKey = validIntervals.includes(
+    (billProp as IntervalKey) || 'annual'
+  )
+    ? ((billProp as IntervalKey) || 'annual')
+    : 'annual';
+  const [billingCycle, setBillingCycle] =
+    React.useState<IntervalKey>(billDefault);
+
+  // Monthly-equivalent unit amount (minor) for selected plan & cycle
+  const monthlyMinor = React.useMemo(() => {
+    if (!planKey) return null;
+    const matrix = priceMatrix[planKey];
+    if (!matrix) return null;
+    const unit = matrix[billingCycle];
+    if (typeof unit !== 'number') return null;
+    return Math.round(unit / monthsPerCycle[billingCycle]);
+  }, [planKey, billingCycle, priceMatrix]);
 
   // Game and Variant
   const [game, setGame] = React.useState<string>('minecraft');
-
   const [variant, setVariant] = React.useState<string>(() => {
     const list = gameVariants['minecraft'] ?? [];
     return list[0]?.id ?? '';
@@ -96,10 +127,10 @@ export default function ConfigureServer({
     setVariant(list[0]?.id ?? '');
   }, [game]);
 
-  // Show variant select only for games that have variants
   const showVariant = (gameVariants[game] ?? []).length > 0;
 
-  const [serverName, setServerName] = React.useState<string>('My Quark Server');
+  const [serverName, setServerName] =
+    React.useState<string>('My Quark Server');
   const [region, setRegion] = React.useState<string>('eu-central');
 
   const [fullName, setFullName] = React.useState('');
@@ -137,6 +168,7 @@ export default function ConfigureServer({
   function validateBillingStep(): boolean {
     const newErrors: Record<string, string> = {};
 
+    if (!planKey) newErrors.plan = 'Please select a plan';
     if (!fullName.trim()) newErrors.fullName = 'Full name is required';
     if (!email.trim()) {
       newErrors.email = 'Email is required';
@@ -158,10 +190,6 @@ export default function ConfigureServer({
       return;
     }
 
-    if (billingCycle !== 'monthly' && billingCycle !== 'yearly') {
-      alert('Invalid billing cycle.');
-      return;
-    }
     setProcessing(true);
 
     const form = document.createElement('form');
@@ -177,18 +205,16 @@ export default function ConfigureServer({
     };
 
     add('_token', getCsrfToken());
-    add('plan', planId || selectedPlan?.id || 'custom');
-    add('billing', billingCycle);
+    add('plan', planKey);
+    // Important: map 'annual' back to 'yearly' because backend expects 'yearly' in validation
+    add('billing', billingCycle === 'annual' ? 'yearly' : billingCycle);
 
-    // Game and Variant: send game and game_variant
-    // For single-variant games, variant can be empty; backend should tolerate that or ignore it
     add('game', game);
-    if (showVariant && variant) {
-      add('game_variant', variant);
-    }
+    if (showVariant && variant) add('game_variant', variant);
 
     add('server_name', serverName);
     add('region', region);
+
     add('billing_name', fullName);
     add('billing_address', address);
     add('billing_city', city);
@@ -229,7 +255,9 @@ export default function ConfigureServer({
           <p className="mb-6 text-brand-cream/80">
             Plan:{' '}
             <span className="font-semibold">
-              {selectedPlan?.tier || planId || 'Custom'}
+              {planOptions.find((p) => p.id.toLowerCase() === planKey)?.name ||
+                planKey ||
+                'Custom'}
             </span>{' '}
             • Billing:{' '}
             <span className="font-semibold capitalize">{billingCycle}</span>
@@ -242,12 +270,12 @@ export default function ConfigureServer({
                 className={`h-2 w-24 rounded-full transition-all duration-300 ${
                   step >= 1 ? 'bg-brand' : 'bg-white/10'
                 }`}
-              ></div>
+              />
               <div
                 className={`h-2 w-24 rounded-full transition-all duration-300 ${
                   step >= 2 ? 'bg-brand' : 'bg-white/10'
                 }`}
-              ></div>
+              />
             </div>
             <div className="mt-2 flex items-center justify-between text-xs text-brand-cream/60">
               <span>Server Details</span>
@@ -256,8 +284,9 @@ export default function ConfigureServer({
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            {/* Main Content - Animated Transition */}
+            {/* Main Content */}
             <div className="lg:col-span-2">
+              {/* Step 1 */}
               <div
                 className={`transition-all duration-500 ${
                   step === 1
@@ -271,6 +300,39 @@ export default function ConfigureServer({
                       <div className="mb-4 text-lg font-semibold text-brand-cream">
                         Server details
                       </div>
+
+                      {/* Plan selection */}
+                      <div className="mb-4">
+                        <Label className="text-brand-cream">Plan</Label>
+                        <Select
+                          value={planKey}
+                          onValueChange={(v) => {
+                            setPlanKey(v);
+                            if (errors.plan) setErrors({ ...errors, plan: '' });
+                          }}
+                        >
+                          <SelectTrigger
+                            className={`mt-2 ${
+                              errors.plan ? 'border-red-500' : ''
+                            }`}
+                          >
+                            <SelectValue placeholder="Select plan" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {planOptions.map((p) => (
+                              <SelectItem key={p.id} value={p.id.toLowerCase()}>
+                                {p.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {errors.plan && (
+                          <p className="mt-1 text-xs text-red-400">
+                            {errors.plan}
+                          </p>
+                        )}
+                      </div>
+
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
                           <Label className="text-brand-cream">Game</Label>
@@ -341,38 +403,37 @@ export default function ConfigureServer({
                         </div>
 
                         <div>
-                          <Label className="text-brand-cream mr-4">
+                          <Label className="text-brand-cream">
                             Billing cycle
                           </Label>
                           <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
-                            <button
-                              type="button"
-                              onClick={() => setBillingCycle('monthly')}
-                              className={
-                                'rounded-full px-3 py-1 text-sm text-white transition-all ' +
-                                (billingCycle === 'monthly'
-                                  ? 'bg-brand'
-                                  : 'hover:bg-white/10')
-                              }
-                            >
-                              Monthly
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setBillingCycle('yearly')}
-                              className={
-                                'rounded-full px-3 py-1 text-sm text-white transition-all ' +
-                                (billingCycle === 'yearly'
-                                  ? 'bg-brand'
-                                  : 'hover:bg-white/10')
-                              }
-                            >
-                              Yearly
-                            </button>
+                            {[
+                              { key: 'monthly', label: 'Monthly' },
+                              { key: 'quarterly', label: 'Quarterly' },
+                              { key: 'semi_annual', label: 'Semi-annual' },
+                              { key: 'annual', label: 'Annual' },
+                            ].map((opt) => (
+                              <button
+                                type="button"
+                                key={opt.key}
+                                onClick={() =>
+                                  setBillingCycle(opt.key as IntervalKey)
+                                }
+                                className={
+                                  'rounded-full px-3 py-1 text-sm text-white transition-all ' +
+                                  (billingCycle === opt.key
+                                    ? 'bg-brand'
+                                    : 'hover:bg-white/10')
+                                }
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
                           </div>
                         </div>
                       </div>
                     </div>
+
                     <div className="flex justify-end">
                       <Button
                         onClick={() => setStep(2)}
@@ -385,6 +446,7 @@ export default function ConfigureServer({
                 )}
               </div>
 
+              {/* Step 2 */}
               <div
                 className={`transition-all duration-500 ${
                   step === 2
@@ -411,11 +473,10 @@ export default function ConfigureServer({
                           </Button>
                         )}
                       </div>
+
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
-                          <Label className="text-brand-cream">
-                            Full name *
-                          </Label>
+                          <Label className="text-brand-cream">Full name *</Label>
                           <Input
                             className={`mt-2 ${
                               errors.fullName ? 'border-red-500' : ''
@@ -433,6 +494,7 @@ export default function ConfigureServer({
                             </p>
                           )}
                         </div>
+
                         <div>
                           <Label className="text-brand-cream">Email *</Label>
                           <Input
@@ -453,6 +515,7 @@ export default function ConfigureServer({
                             </p>
                           )}
                         </div>
+
                         <div className="md:col-span-2">
                           <Label className="text-brand-cream">Address *</Label>
                           <Input
@@ -472,6 +535,7 @@ export default function ConfigureServer({
                             </p>
                           )}
                         </div>
+
                         <div>
                           <Label className="text-brand-cream">City *</Label>
                           <Input
@@ -491,6 +555,7 @@ export default function ConfigureServer({
                             </p>
                           )}
                         </div>
+
                         <div>
                           <Label className="text-brand-cream">Country *</Label>
                           <Select
@@ -584,22 +649,20 @@ export default function ConfigureServer({
                 <li>
                   Plan:{' '}
                   <span className="font-medium">
-                    {selectedPlan?.tier || planId || 'Custom'}
+                    {planOptions.find((p) => p.id.toLowerCase() === planKey)
+                      ?.name || planKey || 'Custom'}
                   </span>
                 </li>
                 <li>
                   Game:{' '}
-                  <span className="font-medium">
-                    {formatGameName(game)}
-                  </span>
+                  <span className="font-medium">{formatGameName(game)}</span>
                 </li>
                 {showVariant && (
                   <li>
                     {game === 'minecraft' ? 'Version' : 'Variant'}:{' '}
                     <span className="font-medium">
-                      {(gameVariants[game] ?? []).find(
-                        (v) => v.id === variant
-                      )?.name ?? variant}
+                      {(gameVariants[game] ?? []).find((v) => v.id === variant)
+                        ?.name ?? variant}
                     </span>
                   </li>
                 )}
@@ -608,31 +671,28 @@ export default function ConfigureServer({
                 </li>
                 <li>
                   Billing:{' '}
-                  <span className="font-medium capitalize">
-                    {billingCycle}
-                  </span>
+                  <span className="font-medium capitalize">{billingCycle}</span>
                 </li>
               </ul>
               <hr className="my-4 border-white/10" />
               <div className="flex items-baseline justify-between">
                 <span className="text-brand-cream/80">Estimated total</span>
-                {monthlyPrice !== null ? (
-                  <div className="text-right">
-                    <div className="text-2xl font-bold">
-                      Kč{monthlyPrice}
-                      <span className="ml-1 text-sm font-normal text-brand-cream/80">
-                        /month
-                      </span>
-                    </div>
-                    {billingCycle === 'yearly' ? (
-                      <div className="text-xs text-brand-cream/60">
-                        Billed yearly: Kč{monthlyPrice * 12}
-                      </div>
-                    ) : null}
+                <div className="text-right">
+                  <div className="text-2xl font-bold">
+                    {monthlyMinor !== null
+                      ? `${formatCZKMinorToMajorString(monthlyMinor)} Kč`
+                      : 'Kč—'}
+                    <span className="ml-1 text-sm font-normal text-brand-cream/80">
+                      /month
+                    </span>
                   </div>
-                ) : (
-                  <span className="text-2xl font-bold">Kč—</span>
-                )}
+                  <div className="text-xs text-brand-cream/60">
+                    {billingCycle === 'monthly' && 'Billed monthly'}
+                    {billingCycle === 'quarterly' && 'Billed every 3 months'}
+                    {billingCycle === 'semi_annual' && 'Billed every 6 months'}
+                    {billingCycle === 'annual' && 'Billed yearly'}
+                  </div>
+                </div>
               </div>
               <p className="mt-2 text-xs text-brand-cream/60">
                 Prices mirror plan selection and billing cycle.
