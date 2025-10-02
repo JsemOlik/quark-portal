@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
 use Inertia\Inertia;
 use Stripe\StripeClient;
+use App\Models\Plan;
 
 class CheckoutController extends Controller
 {
@@ -71,12 +72,20 @@ class CheckoutController extends Controller
             ]);
         }
 
-        $prices = Config::get('plans.prices');
-        if (!isset($prices[$validated['plan']])) {
+        $plan = Plan::where('key', $validated['plan'])->where('active', true)->first();
+        if (!$plan) {
             abort(400, 'Invalid plan.');
         }
 
-        $priceId = $prices[$validated['plan']][$validated['billing']];
+        // If you support multiple currencies, choose one (e.g., from user or app setting)
+        $currency = config('quark_plans.currency', 'czk');
+
+        $planPrice = $plan->priceFor($validated['billing'], $currency);
+        if (!$planPrice) {
+            abort(400, 'No price configured for this plan/interval.');
+        }
+
+        $priceId = $planPrice->stripe_price_id;
 
         // Create a server placeholder but DO NOT provision yet
         $server = Server::create([
@@ -94,6 +103,7 @@ class CheckoutController extends Controller
 
         $subName = 'server_' . $server->id;
         $checkout = $user->newSubscription($subName, $priceId)
+            ->allowPromotionCodes()
             ->checkout([
                 'success_url' => route('checkout.success') . '?server=' . $server->id,
                 'cancel_url' => route('checkout.cancel') . '?server=' . $server->id,

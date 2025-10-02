@@ -341,7 +341,7 @@ export default function ConfigureServer({
                         </div>
 
                         <div>
-                          <Label className="text-brand-cream">
+                          <Label className="text-brand-cream mr-4">
                             Billing cycle
                           </Label>
                           <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">

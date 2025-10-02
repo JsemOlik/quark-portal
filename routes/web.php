@@ -2,6 +2,9 @@
 
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\Admin\PlanController as AdminPlanController;
+// use App\Http\Controllers\Admin\PlanPriceController as AdminPlanPriceController;
+// use App\Http\Middleware\EnsureAdmin;
 
 Route::get('/', function () {
     return Inertia::render('store/index');
@@ -178,6 +181,23 @@ Route::middleware(['auth', 'verified'])->prefix('dashboard')->name('dashboard.')
     Route::post('admin/tickets/{ticket}/status', [\App\Http\Controllers\TicketController::class, 'adminSetStatus'])
         ->name('admin.tickets.status');
 });
+
+Route::middleware(['auth', \App\Http\Middleware\EnsureAdmin::class])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('/plans', [AdminPlanController::class, 'index'])->name('plans.index');
+        Route::get('/plans/{plan}', [AdminPlanController::class, 'show'])->name('plans.show');
+        Route::post('/plans', [AdminPlanController::class, 'store'])->name('plans.store');
+        Route::put('/plans/{plan}', [AdminPlanController::class, 'update'])->name('plans.update');
+        Route::delete('/plans/{plan}', [AdminPlanController::class, 'destroy'])->name('plans.destroy');
+
+        Route::post('/plans/sync', [AdminPlanController::class, 'sync'])->name('plans.sync');
+
+        Route::post('/plans/{plan}/prices', [\App\Http\Controllers\Admin\PlanPriceController::class, 'store'])->name('plan_prices.store');
+        Route::put('/plans/{plan}/prices/{price}', [\App\Http\Controllers\Admin\PlanPriceController::class, 'update'])->name('plan_prices.update');
+        Route::delete('/plans/{plan}/prices/{price}', [\App\Http\Controllers\Admin\PlanPriceController::class, 'destroy'])->name('plan_prices.destroy');
+    });
 
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';
