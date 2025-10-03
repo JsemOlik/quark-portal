@@ -1,5 +1,8 @@
 import React from 'react';
 import GradientBackdrop from './ui/GradientBackdrop';
+import { Button } from '@/components/ui/button';
+import AppLogoIcon from '@/components/app-logo-icon';
+import { Link } from '@inertiajs/react';
 
 export default function Hero() {
     return (<>
@@ -46,6 +49,8 @@ export default function Hero() {
                     running in minutes with reliable hosting and straightforward
                     management.
                 </p>
+                <Link href='#specs'><Button size='lg' className='text-md text-brand-cream mr-4 mt-8'>Learn More</Button></Link>
+                <Link href='#pricing' ><Button size='lg' className='text-md text-brand-cream'>Starting at just 85Kč/month</Button></Link>
             </div>
             <img src='/images/pyrodactyl-panel.png' className='mt-24' />
         </section></>
