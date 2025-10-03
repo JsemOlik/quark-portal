@@ -18,7 +18,7 @@ class PterodactylService
 
     protected function http()
     {
-        return \Illuminate\Support\Facades\Http::withHeaders([
+        return Http::withHeaders([
             'Authorization' => 'Bearer ' . $this->apiKey,
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
@@ -27,11 +27,10 @@ class PterodactylService
 
     public function createUser(array $payload): array
     {
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $this->apiKey,
-            'Accept' => 'application/json',
-            'Content-Type' => 'application/json',
-        ])->post($this->baseUrl . '/api/application/users', $payload);
+        $response = $this->http()->post(
+            $this->baseUrl . '/api/application/users',
+            $payload
+        );
 
         if ($response->failed()) {
             $error = $response->json();
@@ -41,20 +40,26 @@ class PterodactylService
         }
 
         $data = $response->json();
-        return $data['attributes'] ?? $data;
+
+        // Pterodactyl typically wraps in data->attributes
+        if (isset($data['attributes'])) {
+            return $data['attributes'];
+        }
+        if (isset($data['data']['attributes'])) {
+            return $data['data']['attributes'];
+        }
+
+        return $data;
     }
 
     public function buildUserPayload(string $name, string $email, string $password): array
     {
         [$first, $last] = $this->splitName($name);
 
-        // Build desired username from name, fallback to email local-part
         $desired = $this->usernameFromName($name) ?: $this->usernameFromEmail($email);
 
-        // Ensure only allowed chars and max length (Pterodactyl accepts up to 191)
         $desired = $this->sanitizeUsername($desired);
 
-        // Try desired username; if taken, append a short suffix
         $username = $this->ensureUniqueUsername($desired);
 
         return [
@@ -83,9 +88,7 @@ class PterodactylService
         if ($name === '') {
             return '';
         }
-        // Convert spaces to underscores, remove disallowed chars, lowercase
         $u = strtolower(preg_replace('/[^a-z0-9]+/i', '_', $name));
-        // Collapse multiple underscores and trim
         $u = preg_replace('/_+/', '_', $u);
         $u = trim($u, '_');
         return $u;
@@ -93,7 +96,8 @@ class PterodactylService
 
     protected function usernameFromEmail(string $email): string
     {
-        $local = strtolower(substr($email, 0, strpos($email, '@') ?: strlen($email)));
+        $at = strpos($email, '@');
+        $local = strtolower($at !== false ? substr($email, 0, $at) : $email);
         $local = preg_replace('/[^a-z0-9]+/i', '_', $local);
         $local = preg_replace('/_+/', '_', $local);
         return trim($local, '_');
@@ -104,19 +108,15 @@ class PterodactylService
         $u = strtolower(preg_replace('/[^a-z0-9_]/i', '_', $u));
         $u = preg_replace('/_+/', '_', $u);
         $u = trim($u, '_');
-        // Hard cap length for safety
         return substr($u, 0, 50);
     }
 
     protected function ensureUniqueUsername(string $desired): string
     {
-        // Try desired first
         if (!$this->usernameExists($desired)) {
             return $desired;
         }
 
-        // Append a short numeric suffix until unique
-        // Example: anne_marie_sigma, anne_marie_sigma_1, _2, ...
         for ($i = 1; $i <= 20; $i++) {
             $candidate = $desired . '_' . $i;
             if (!$this->usernameExists($candidate)) {
@@ -124,25 +124,17 @@ class PterodactylService
             }
         }
 
-        // Fallback: random short suffix if many collisions
         return $desired . '_' . Str::lower(Str::random(4));
     }
 
     protected function usernameExists(string $username): bool
     {
-        // Pterodactyl Application API: list users with filter[username]
-        // Docs: GET /api/application/users?filter[username]=foo
-        $res = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $this->apiKey,
-            'Accept' => 'application/json',
-        ])->get($this->baseUrl . '/api/application/users', [
-                    'filter[username]' => $username,
-                    'per_page' => 1,
-                ]);
+        $res = $this->http()->get($this->baseUrl . '/api/application/users', [
+            'filter[username]' => $username,
+            'per_page' => 1,
+        ]);
 
         if ($res->failed()) {
-            // If we can’t verify, assume it’s free to avoid blocking registration;
-            // collisions will be caught by createUser 422 and you can handle in controller.
             return false;
         }
 
@@ -185,10 +177,15 @@ class PterodactylService
 
     public function createServer(array $payload): array
     {
-        $res = $this->http()->post($this->baseUrl . '/api/application/servers', $payload);
+        $res = $this->http()->post(
+            $this->baseUrl . '/api/application/servers',
+            $payload
+        );
 
         if ($res->failed()) {
-            throw new \RuntimeException('Pterodactyl server creation failed: ' . $res->body());
+            throw new \RuntimeException(
+                'Pterodactyl server creation failed: ' . $res->body()
+            );
         }
 
         $data = $res->json();
@@ -197,31 +194,42 @@ class PterodactylService
 
     public function powerAction(int|string $serverId, string $signal): void
     {
-        // Optional: POST /api/client/servers/{identifier}/power is a Client API.
-        // For application-level: use suspend/unsuspend via Application API if needed.
+        // Implement client API if needed.
     }
 
     public function suspendServer(int $serverId): void
     {
-        $res = $this->http()->post($this->baseUrl . "/api/application/servers/{$serverId}/suspend");
+        $res = $this->http()->post(
+            $this->baseUrl . "/api/application/servers/{$serverId}/suspend"
+        );
         if ($res->failed()) {
-            throw new \RuntimeException('Failed to suspend server: ' . $res->body());
+            throw new \RuntimeException(
+                'Failed to suspend server: ' . $res->body()
+            );
         }
     }
 
     public function unsuspendServer(int $serverId): void
     {
-        $res = $this->http()->post($this->baseUrl . "/api/application/servers/{$serverId}/unsuspend");
+        $res = $this->http()->post(
+            $this->baseUrl . "/api/application/servers/{$serverId}/unsuspend"
+        );
         if ($res->failed()) {
-            throw new \RuntimeException('Failed to unsuspend server: ' . $res->body());
+            throw new \RuntimeException(
+                'Failed to unsuspend server: ' . $res->body()
+            );
         }
     }
 
     public function forceDeleteServer(int $serverId): void
     {
-        $res = $this->http()->delete($this->baseUrl . "/api/application/servers/{$serverId}/force");
+        $res = $this->http()->delete(
+            $this->baseUrl . "/api/application/servers/{$serverId}/force"
+        );
         if ($res->failed()) {
-            throw new \RuntimeException('Failed to delete server: ' . $res->body());
+            throw new \RuntimeException(
+                'Failed to delete server: ' . $res->body()
+            );
         }
     }
 }

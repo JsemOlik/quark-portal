@@ -35,7 +35,6 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        // You can wrap it in a transaction so you don't keep a local user if Pterodactyl fails
         try {
             $user = DB::transaction(function () use ($request) {
                 $user = User::create([
@@ -44,7 +43,7 @@ class RegisteredUserController extends Controller
                     'password' => Hash::make($request->password),
                 ]);
 
-                // Create remote user on Pterodactyl
+                // Create remote user on Pterodactyl via service
                 $payload = $this->ptero->buildUserPayload(
                     $request->name,
                     $request->email,
@@ -53,7 +52,7 @@ class RegisteredUserController extends Controller
 
                 $pteroUser = $this->ptero->createUser($payload);
 
-                // Save linkage
+                // Save linkage to local user
                 $user->update([
                     'pterodactyl_id' => $pteroUser['id'] ?? null,
                     'pterodactyl_uuid' => $pteroUser['uuid'] ?? null,
@@ -62,13 +61,13 @@ class RegisteredUserController extends Controller
                 return $user;
             });
         } catch (Throwable $e) {
-            // Log it so you can debug
             report($e);
 
             return back()
                 ->withInput($request->except('password', 'password_confirmation'))
                 ->withErrors([
-                    'email' => 'Registration failed due to an external service error. Please try again.',
+                    'email' =>
+                        'Registration failed due to an external service error. Please try again.',
                 ]);
         }
 
@@ -77,24 +76,10 @@ class RegisteredUserController extends Controller
 
         return redirect()->intended('/dashboard');
     }
-    public function findUserByEmail(string $email): ?array
+
+    // If you want a controller-accessible “find by email”, delegate to the service:
+    public function findPterodactylUserByEmail(string $email): ?array
     {
-        $res = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $this->apiKey,
-            'Accept' => 'application/json',
-        ])->get($this->baseUrl . '/api/application/users', [
-                    'filter[email]' => $email,
-                ]);
-
-        if ($res->failed()) {
-            return null;
-        }
-
-        $data = $res->json();
-        $items = $data['data'] ?? [];
-        if (count($items) === 0) {
-            return null;
-        }
-        return $items[0]['attributes'] ?? null;
+        return $this->ptero->findUserByEmail($email);
     }
 }
