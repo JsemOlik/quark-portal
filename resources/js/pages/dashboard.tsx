@@ -9,7 +9,7 @@ type Server = {
   game: string;
   billing_cycle: 'monthly' | 'yearly';
   pending_billing_cycle?: 'monthly' | 'yearly' | null;
-  status: string;
+  status: string; // 'active' | 'suspended' | 'cancelled' | 'pending_cancellation'
   created_at: string;
 };
 
@@ -43,9 +43,10 @@ export default function DashboardPage({
 
         <section className="relative mx-auto w-full max-w-7xl px-4 pb-12 pt-8">
           <h1 className="mb-2 text-2xl font-semibold text-brand-cream">Dashboard</h1>
-          <p className="mb-6 text-brand-cream/80">Manage your active services and billing.</p>
+          <p className="mb-6 text-brand-cream/80">
+            Manage your active services and billing.
+          </p>
 
-          {/* Upcoming Payments */}
           {nextBillings && nextBillings.length > 0 && (
             <div className="mb-6 rounded-2xl border border-brand/20 bg-brand/5 p-5">
               <div className="mb-3 text-lg font-semibold text-brand-cream">
@@ -91,6 +92,7 @@ export default function DashboardPage({
                     No active services yet.
                   </div>
                 )}
+
                 {servers.map((s) => (
                   <Link
                     key={s.id}
@@ -99,9 +101,11 @@ export default function DashboardPage({
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="font-semibold text-brand-cream">{s.name}</div>
+                        <div className="font-semibold text-brand-cream">
+                          {s.name}
+                        </div>
                         <div className="text-sm text-brand-cream/70">
-                          {/* {formatGameName(s.game)} • */}Billing: {s.billing_cycle}
+                          Billing: {s.billing_cycle}
                           {s.pending_billing_cycle &&
                             s.pending_billing_cycle !== s.billing_cycle && (
                               <span className="text-brand ml-1">
@@ -110,16 +114,20 @@ export default function DashboardPage({
                             )}
                         </div>
                       </div>
+
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${statusClasses(
                           s.status
                         )}`}
                       >
-                        {s.status}
+                        {s.status === 'pending_cancellation'
+                          ? 'Pending Cancellation'
+                          : s.status}
                       </span>
                     </div>
                   </Link>
                 ))}
+
                 {serversCount > servers.length && (
                   <div className="pt-2">
                     <Link
@@ -144,6 +152,7 @@ export default function DashboardPage({
                     No invoices yet.
                   </div>
                 )}
+
                 {invoices &&
                   invoices.slice(0, 4).map((inv: any) => (
                     <a
@@ -166,6 +175,7 @@ export default function DashboardPage({
                       </div>
                     </a>
                   ))}
+
                 {invoices && invoices.length > 4 && (
                   <div className="pt-2">
                     <Link
@@ -181,7 +191,6 @@ export default function DashboardPage({
             </div>
           </div>
 
-          {/* Support CTA section */}
           <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
               <div>
@@ -224,6 +233,8 @@ function statusClasses(status: string) {
       return 'bg-red-500/20 text-red-300 border border-red-400/30';
     case 'suspended':
       return 'bg-blue-500/20 text-blue-300 border border-blue-400/30';
+    case 'pending_cancellation':
+      return 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30';
     case 'active':
       return 'bg-brand/20 text-brand border border-brand/30';
     default:

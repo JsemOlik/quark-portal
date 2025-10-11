@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\ServerController;
+use App\Http\Controllers\BillingController;
 
 Route::middleware(['auth', 'verified'])
     ->prefix('dashboard')
@@ -24,6 +25,9 @@ Route::middleware(['auth', 'verified'])
         Route::post('servers/{server}/remove', [ServerController::class, 'destroy'])
             ->name('servers.destroy');
 
-        Route::get('invoices', fn () => Inertia\Inertia::render('invoices'))
+        Route::get('invoices', fn() => Inertia\Inertia::render('invoices'))
             ->name('invoices');
+
+        Route::post('billing/portal', [BillingController::class, 'portal'])
+            ->name('billing.portal');
     });

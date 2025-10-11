@@ -4,97 +4,170 @@ namespace App\Http\Controllers;
 
 use App\Models\Server;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Cashier\Http\Controllers\WebhookController as CashierController;
 
 class WebhookController extends CashierController
 {
-    /**
-     * Handle checkout session completed.
-     *
-     * @param  array  $payload
-     * @return \Symfony\Component\HttpFoundation\Response
-     */
+    public function __invoke(Request $request)
+    {
+        return $this->handleWebhook($request);
+    }
     public function handleCheckoutSessionCompleted(array $payload)
     {
-        \Log::info('Checkout session completed webhook received', ['payload' => $payload]);
-
-        // Let parent handle the default behavior
-        $response = parent::handleCheckoutSessionCompleted($payload);
-
-        return $response;
+        Log::info('Checkout session completed webhook received', ['payload' => $payload]);
+        return parent::handleCheckoutSessionCompleted($payload);
     }
 
-    /**
-     * Handle subscription created.
-     *
-     * @param  array  $payload
-     * @return \Symfony\Component\HttpFoundation\Response
-     */
     public function handleCustomerSubscriptionCreated(array $payload)
     {
-        \Log::info('Subscription created webhook received', ['payload' => $payload]);
+        Log::info('Subscription created webhook received', ['payload' => $payload]);
 
         $response = parent::handleCustomerSubscriptionCreated($payload);
-
         $this->updateServerSubscriptionStatus($payload);
 
         return $response;
     }
 
-    /**
-     * Handle subscription updated.
-     *
-     * @param  array  $payload
-     * @return \Symfony\Component\HttpFoundation\Response
-     */
     public function handleCustomerSubscriptionUpdated(array $payload)
     {
         $response = parent::handleCustomerSubscriptionUpdated($payload);
 
+        // Update base mapping first (respects pending cancellation)
         $this->updateServerSubscriptionStatus($payload);
 
-        // Check if billing cycle changed and clear pending_billing_cycle
         if (isset($payload['data']['object']['id'])) {
-            $subscriptionId = $payload['data']['object']['id'];
+            $obj = $payload['data']['object'];
+            $subscriptionId = $obj['id'];
             $server = Server::where('subscription_id', $subscriptionId)->first();
 
-            if ($server && $server->pending_billing_cycle) {
-                // If the subscription was updated, the pending billing cycle has now taken effect
-                $server->billing_cycle = $server->pending_billing_cycle;
-                $server->pending_billing_cycle = null;
-                $server->save();
+            if ($server) {
+                $cancelAtPeriodEnd = $obj['cancel_at_period_end'] ?? false;
+                $cancelAt = isset($obj['cancel_at']) ? (int) $obj['cancel_at'] : null;
+                $stripeStatus = $obj['status'] ?? null;
 
-                \Log::info('Billing cycle updated from pending', [
-                    'server_id' => $server->id,
-                    'new_billing_cycle' => $server->billing_cycle
-                ]);
+                // If user canceled in portal -> mark pending + suspend
+                if ($cancelAtPeriodEnd && $stripeStatus === 'active') {
+                    if (Schema::hasColumn('servers', 'cancel_at')) {
+                        $server->cancel_at = $cancelAt ? date('Y-m-d H:i:s', $cancelAt) : null;
+                    }
+
+                    if ($server->status !== 'cancelled') {
+                        $server->status = 'pending_cancellation';
+                        $server->save();
+                    }
+
+                    try {
+                        if ($server->pterodactyl_server_id) {
+                            app(\App\Services\PterodactylService::class)
+                                ->suspendServer((int) $server->pterodactyl_server_id);
+                            Log::info('Pterodactyl server suspended due to pending cancellation', [
+                                'server_id' => $server->id,
+                                'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                            ]);
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning('Failed to suspend Pterodactyl on pending cancellation: ' . $e->getMessage(), [
+                            'server_id' => $server->id,
+                        ]);
+                    }
+                }
+
+                // If user resumed (cancel_at_period_end false, status active) -> mark active + unsuspend
+                if (!$cancelAtPeriodEnd && $stripeStatus === 'active' && $server->status === 'pending_cancellation') {
+                    $server->status = 'active';
+                    if (Schema::hasColumn('servers', 'cancel_at')) {
+                        $server->cancel_at = null;
+                    }
+                    $server->save();
+
+                    try {
+                        if ($server->pterodactyl_server_id) {
+                            app(\App\Services\PterodactylService::class)
+                                ->unsuspendServer((int) $server->pterodactyl_server_id);
+                            Log::info('Pterodactyl server unsuspended after resume', [
+                                'server_id' => $server->id,
+                                'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                            ]);
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning('Failed to unsuspend Pterodactyl after resume: ' . $e->getMessage(), [
+                            'server_id' => $server->id,
+                        ]);
+                    }
+                }
+
+                // If period ended and Stripe canceled, reflect local state
+                if ($stripeStatus === 'canceled') {
+                    $server->status = 'cancelled';
+                    $server->save();
+                    // Optionally force delete on Ptero here if desired
+                    // app(\App\Services\PterodactylService::class)->forceDeleteServer((int) $server->pterodactyl_server_id);
+                }
+
+                // Pending billing cycle took effect
+                if ($server->pending_billing_cycle) {
+                    $server->billing_cycle = $server->pending_billing_cycle;
+                    $server->pending_billing_cycle = null;
+                    $server->save();
+
+                    Log::info('Billing cycle updated from pending', [
+                        'server_id' => $server->id,
+                        'new_billing_cycle' => $server->billing_cycle
+                    ]);
+                }
             }
         }
 
         return $response;
     }
 
-    /**
-     * Handle subscription deleted.
-     *
-     * @param  array  $payload
-     * @return \Symfony\Component\HttpFoundation\Response
-     */
     public function handleCustomerSubscriptionDeleted(array $payload)
     {
+        Log::info('Subscription deleted webhook received', ['payload' => $payload]);
+
         $response = parent::handleCustomerSubscriptionDeleted($payload);
 
-        $this->updateServerSubscriptionStatus($payload);
+        if (isset($payload['data']['object']['id'])) {
+            $obj = $payload['data']['object'];
+            $subscriptionId = $obj['id'];
+            $server = Server::where('subscription_id', $subscriptionId)->first();
 
+            if ($server) {
+                Log::info('Processing subscription deletion', [
+                    'server_id' => $server->id,
+                    'subscription_id' => $subscriptionId,
+                    'current_status' => $server->status
+                ]);
+
+                // Update server status to cancelled
+                $server->status = 'cancelled';
+                $server->save();
+
+                // Suspend the server in Pterodactyl
+                try {
+                    if ($server->pterodactyl_server_id) {
+                        app(\App\Services\PterodactylService::class)
+                            ->suspendServer((int) $server->pterodactyl_server_id);
+                        Log::info('Pterodactyl server suspended due to subscription deletion', [
+                            'server_id' => $server->id,
+                            'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                        ]);
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('Failed to suspend Pterodactyl server on deletion: ' . $e->getMessage(), [
+                        'server_id' => $server->id,
+                        'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                    ]);
+                }
+            }
+        }
+
+        $this->updateServerSubscriptionStatus($payload);
         return $response;
     }
 
-    /**
-     * Handle invoice payment succeeded.
-     *
-     * @param  array  $payload
-     * @return \Symfony\Component\HttpFoundation\Response
-     */
     public function handleInvoicePaymentSucceeded(array $payload)
     {
         $response = parent::handleInvoicePaymentSucceeded($payload);
@@ -110,28 +183,31 @@ class WebhookController extends CashierController
         return $response;
     }
 
-    /**
-     * Update server subscription status.
-     *
-     * @param  array  $payload
-     * @return void
-     */
     protected function updateServerSubscriptionStatus(array $payload): void
     {
         if (!isset($payload['data']['object']['id'])) {
             return;
         }
 
-        $subscriptionId = $payload['data']['object']['id'];
-        $status = $payload['data']['object']['status'] ?? null;
+        $obj = $payload['data']['object'];
+        $subscriptionId = $obj['id'];
+        $status = $obj['status'] ?? null;
+        $cancelAtPeriodEnd = $obj['cancel_at_period_end'] ?? false;
 
         $server = Server::where('subscription_id', $subscriptionId)->first();
-
         if (!$server) {
             return;
         }
 
-        // Map Stripe subscription statuses to server statuses
+        // Respect pending cancellation state
+        if ($cancelAtPeriodEnd && $status === 'active') {
+            if ($server->status !== 'cancelled') {
+                $server->update(['status' => 'pending_cancellation']);
+            }
+            return;
+        }
+
+        // Otherwise, map normally
         match ($status) {
             'active' => $server->update(['status' => 'active']),
             'canceled', 'incomplete_expired' => $server->update(['status' => 'cancelled']),
@@ -139,10 +215,10 @@ class WebhookController extends CashierController
             default => null,
         };
 
-        // If subscription is active and server not yet provisioned, dispatch
+        // Provision if active and not yet provisioned
         if ($status === 'active' && empty($server->pterodactyl_server_id)) {
             \App\Jobs\ProvisionServer::dispatch($server->id);
-            \Log::info('Provision dispatched from webhook', [
+            Log::info('Provision dispatched from webhook', [
                 'server_id' => $server->id,
                 'subscription_id' => $subscriptionId,
             ]);

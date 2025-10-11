@@ -14,3 +14,4 @@ Route::get('/checkout/success', [CheckoutController::class, 'success'])
 Route::get('/checkout/cancel', [CheckoutController::class, 'cancel'])
     ->middleware(['auth'])
     ->name('checkout.cancel');
+

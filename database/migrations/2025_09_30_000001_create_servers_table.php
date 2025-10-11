@@ -19,6 +19,7 @@ return new class extends Migration
             $table->enum('billing_cycle', ['monthly', 'quarterly', 'semi_annual', 'yearly']);
             $table->string('stripe_checkout_id')->nullable();
             $table->string('status')->default('pending');
+            $table->timestamp('cancel_at')->nullable()->after('status');
             $table->timestamps();
         });
     }
