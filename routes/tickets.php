@@ -20,6 +20,10 @@ Route::middleware(['auth', 'verified'])->prefix('dashboard')->name('dashboard.')
     Route::post('tickets/{ticket}/delete', [\App\Http\Controllers\TicketController::class, 'destroy'])
         ->name('tickets.destroy');
 
+    // Secure file download route
+    Route::get('tickets/attachment/{message}', [\App\Http\Controllers\TicketController::class, 'downloadAttachment'])
+        ->name('ticket.attachment');
+
     // Admin ticket routes - protected with admin middleware
     Route::middleware([\App\Http\Middleware\EnsureAdmin::class])->group(function () {
         Route::get('admin/tickets', [\App\Http\Controllers\TicketController::class, 'adminIndex'])

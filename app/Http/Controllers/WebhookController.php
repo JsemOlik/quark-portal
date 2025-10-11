@@ -43,6 +43,54 @@ class WebhookController extends CashierController
     public function handleCheckoutSessionCompleted(array $payload)
     {
         Log::info('Checkout session completed webhook received', ['payload' => $payload]);
+
+        // Create server from checkout session metadata
+        $session = $payload['data']['object'];
+
+        if (isset($session['metadata']['server_config']) &&
+            isset($session['metadata']['quark_app']) &&
+            $session['metadata']['quark_app'] === 'server_creation') {
+
+            try {
+                $serverConfig = json_decode($session['metadata']['server_config'], true);
+
+                if ($serverConfig) {
+                    // Get subscription ID from session
+                    $subscriptionId = $session['subscription'] ?? null;
+
+                    if ($subscriptionId) {
+                        // Create server with payment confirmed
+                        $server = Server::create(array_merge($serverConfig, [
+                            'subscription_id' => $subscriptionId,
+                            'subscription_name' => $session['client_reference_id'] ?? 'server_' . time(),
+                            'stripe_checkout_id' => $session['id'],
+                            'status' => 'active',
+                            'provision_status' => 'pending',
+                        ]));
+
+                        Log::info('Server created from confirmed checkout session', [
+                            'server_id' => $server->id,
+                            'subscription_id' => $subscriptionId,
+                            'checkout_session_id' => $session['id'],
+                        ]);
+
+                        // Dispatch provisioning job
+                        \App\Jobs\ProvisionServer::dispatch($server->id);
+
+                    } else {
+                        Log::error('No subscription ID in completed checkout session', [
+                            'session_id' => $session['id']
+                        ]);
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::error('Failed to create server from checkout session: ' . $e->getMessage(), [
+                    'session_id' => $session['id'],
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
         return parent::handleCheckoutSessionCompleted($payload);
     }
 
@@ -249,5 +297,45 @@ class WebhookController extends CashierController
                 'subscription_id' => $subscriptionId,
             ]);
         }
+    }
+
+    public function handleInvoicePaymentFailed(array $payload)
+    {
+        Log::info('Invoice payment failed webhook received', ['payload' => $payload]);
+
+        $invoice = $payload['data']['object'];
+        $subscriptionId = $invoice['subscription'] ?? null;
+
+        if ($subscriptionId) {
+            $server = Server::where('subscription_id', $subscriptionId)->first();
+
+            if ($server && $server->status !== 'cancelled') {
+                Log::info('Suspending server due to payment failure', [
+                    'server_id' => $server->id,
+                    'subscription_id' => $subscriptionId,
+                ]);
+
+                $server->status = 'suspended';
+                $server->save();
+
+                // Suspend in Pterodactyl
+                try {
+                    if ($server->pterodactyl_server_id) {
+                        app(\App\Services\PterodactylService::class)
+                            ->suspendServer((int) $server->pterodactyl_server_id);
+                        Log::info('Pterodactyl server suspended due to payment failure', [
+                            'server_id' => $server->id,
+                            'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                        ]);
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('Failed to suspend Pterodactyl server after payment failure: ' . $e->getMessage(), [
+                        'server_id' => $server->id,
+                    ]);
+                }
+            }
+        }
+
+        return parent::handleInvoicePaymentFailed($payload);
     }
 }

@@ -84,7 +84,7 @@ class TicketController extends Controller
                     'is_staff' => $message->is_staff,
                     'user_name' => $message->user ? $message->user->name : 'Staff',
                     'attachment_name' => $message->attachment_name,
-                    'attachment_path' => $message->attachment_path ? Storage::url($message->attachment_path) : null,
+                    'attachment_path' => $message->attachment_path ? route('ticket.attachment', ['message' => $message->id]) : null,
                     'created_at' => $message->created_at->format('Y-m-d H:i'),
                 ];
             });
@@ -112,7 +112,13 @@ class TicketController extends Controller
 
         $validated = $request->validate([
             'message' => 'required|string',
-            'attachment' => 'nullable|file|max:10240',
+            'attachment' => [
+                'nullable',
+                'file',
+                'max:10240', // 10MB max
+                'mimes:pdf,doc,docx,txt,png,jpg,jpeg,gif',
+                'mimetypes:application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,image/png,image/jpeg,image/gif'
+            ],
         ]);
 
         $attachmentPath = null;
@@ -120,8 +126,28 @@ class TicketController extends Controller
 
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
+
+            // Validate file type by actual content, not just extension
+            $mimeType = $file->getMimeType();
+            $allowedMimes = [
+                'application/pdf',
+                'application/msword',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'text/plain',
+                'image/png',
+                'image/jpeg',
+                'image/gif'
+            ];
+
+            if (!in_array($mimeType, $allowedMimes)) {
+                return back()->withErrors(['attachment' => 'Invalid file type. Only PDF, DOC, DOCX, TXT, PNG, JPG, and GIF files are allowed.']);
+            }
+
+            // Generate secure filename to prevent directory traversal
+            $extension = $file->getClientOriginalExtension();
+            $secureFileName = 'ticket_' . uniqid() . '_' . time() . '.' . $extension;
             $attachmentName = $file->getClientOriginalName();
-            $attachmentPath = $file->store('ticket-attachments', 'public');
+            $attachmentPath = $file->storeAs('ticket-attachments', $secureFileName, 'private');
         }
 
         TicketMessage::create([
@@ -222,7 +248,13 @@ class TicketController extends Controller
 
         $validated = $request->validate([
             'message' => 'required|string',
-            'attachment' => 'nullable|file|max:10240',
+            'attachment' => [
+                'nullable',
+                'file',
+                'max:10240', // 10MB max
+                'mimes:pdf,doc,docx,txt,png,jpg,jpeg,gif',
+                'mimetypes:application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,image/png,image/jpeg,image/gif'
+            ],
         ]);
 
         $attachmentPath = null;
@@ -230,8 +262,28 @@ class TicketController extends Controller
 
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
+
+            // Validate file type by actual content, not just extension
+            $mimeType = $file->getMimeType();
+            $allowedMimes = [
+                'application/pdf',
+                'application/msword',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'text/plain',
+                'image/png',
+                'image/jpeg',
+                'image/gif'
+            ];
+
+            if (!in_array($mimeType, $allowedMimes)) {
+                return back()->withErrors(['attachment' => 'Invalid file type. Only PDF, DOC, DOCX, TXT, PNG, JPG, and GIF files are allowed.']);
+            }
+
+            // Generate secure filename to prevent directory traversal
+            $extension = $file->getClientOriginalExtension();
+            $secureFileName = 'ticket_admin_' . uniqid() . '_' . time() . '.' . $extension;
             $attachmentName = $file->getClientOriginalName();
-            $attachmentPath = $file->store('ticket-attachments', 'public');
+            $attachmentPath = $file->storeAs('ticket-attachments', $secureFileName, 'private');
         }
 
         TicketMessage::create([
@@ -286,5 +338,20 @@ class TicketController extends Controller
             ]);
             return back()->withErrors(['status' => 'Failed to update status.']);
         }
+    }
+
+    public function downloadAttachment(TicketMessage $message)
+    {
+        $user = Auth::user();
+        $ticket = $message->ticket;
+
+        // Authorization: user must own the ticket OR be an admin
+        abort_unless($ticket->user_id === $user->id || $user->is_admin, 403);
+
+        if (!$message->attachment_path || !Storage::disk('private')->exists($message->attachment_path)) {
+            abort(404, 'Attachment not found.');
+        }
+
+        return Storage::disk('private')->download($message->attachment_path, $message->attachment_name);
     }
 }

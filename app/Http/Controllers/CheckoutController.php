@@ -88,7 +88,8 @@ class CheckoutController extends Controller
 
         $priceId = $planPrice->stripe_price_id;
 
-        $server = Server::create([
+        // Store server configuration in checkout session metadata instead of creating server immediately
+        $serverConfig = [
             'user_id' => $user->id,
             'plan_id' => $plan->id,
             'plan_tier' => strtoupper($plan->key),
@@ -97,105 +98,74 @@ class CheckoutController extends Controller
             'region' => $validated['region'],
             'server_name' => $validated['server_name'],
             'billing_cycle' => $validated['billing'],
-            'status' => 'pending',
-            'provision_status' => 'pending',
-        ]);
+        ];
 
-        $subName = 'server_' . $server->id;
+        // Generate unique subscription name using timestamp and user ID for uniqueness
+        $subName = 'server_' . $user->id . '_' . time();
 
         $checkout = $user->newSubscription($subName, $priceId)
             ->allowPromotionCodes()
             ->checkout([
-                'success_url' => route('checkout.success') . '?server=' . $server->id,
-                'cancel_url' => route('checkout.cancel') . '?server=' . $server->id,
+                'success_url' => route('checkout.success') . '?session_id={CHECKOUT_SESSION_ID}',
+                'cancel_url' => route('checkout.cancel') . '?session_id={CHECKOUT_SESSION_ID}',
+                'metadata' => [
+                    'server_config' => json_encode($serverConfig),
+                    'quark_app' => 'server_creation',
+                ]
             ]);
 
-        $server->stripe_checkout_id = $checkout->id;
-        $server->save();
+        \Log::info('Checkout session created without server record', [
+            'checkout_session_id' => $checkout->id,
+            'subscription_name' => $subName,
+            'user_id' => $user->id,
+        ]);
 
         return redirect($checkout->url);
     }
 
     public function success(Request $request)
     {
-        $serverId = (int) $request->query('server');
-        $server = Server::where('id', $serverId)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+        $sessionId = $request->query('session_id');
 
-        try {
-            $subName = 'server_' . $server->id;
-
-            sleep(2);
-
-            $request->user()->refresh();
-            $sub = $request->user()->subscription($subName);
-
-            $provisionNow = false;
-
-            if ($sub) {
-                $server->subscription_id = $sub->stripe_id;
-                $server->subscription_name = $subName;
-                $server->status = 'active';
-                $server->save();
-
-                \Log::info('Subscription found via Cashier', [
-                    'subscription_id' => $sub->stripe_id,
-                    'server_id' => $server->id,
-                ]);
-
-                $provisionNow = true;
-            } else {
-                $stripe = new StripeClient(config('cashier.secret'));
-                $session = $stripe->checkout->sessions->retrieve($server->stripe_checkout_id, [
-                    'expand' => ['subscription'],
-                ]);
-
-                if (isset($session->subscription)) {
-                    if (is_string($session->subscription)) {
-                        $subscriptionId = $session->subscription;
-                    } elseif (is_object($session->subscription) && isset($session->subscription->id)) {
-                        $subscriptionId = $session->subscription->id;
-                    } else {
-                        $subscriptionId = (string) $session->subscription;
-                    }
-
-                    $server->subscription_id = $subscriptionId;
-                    $server->subscription_name = $subName;
-                    $server->status = 'active';
-                    $server->save();
-
-                    \Log::info('Subscription found via Stripe API', [
-                        'subscription_id' => $subscriptionId,
-                        'server_id' => $server->id,
-                    ]);
-
-                    $provisionNow = true;
-                } else {
-                    \Log::warning('No subscription found after checkout', [
-                        'server_id' => $server->id,
-                        'checkout_id' => $server->stripe_checkout_id,
-                    ]);
-
-                    $server->status = 'pending';
-                    $server->save();
-                }
-            }
-
-            if ($provisionNow) {
-                ProvisionServer::dispatch($server->id);
-            }
-        } catch (\Throwable $e) {
-            \Log::error('Checkout success error: ' . $e->getMessage(), [
-                'server_id' => $server->id,
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            $server->status = 'pending';
-            $server->save();
+        if (!$sessionId) {
+            return redirect()->route('dashboard')->with('error', 'Invalid checkout session.');
         }
 
-        return Inertia::render('store/checkout-success', ['serverId' => $server->id]);
+        try {
+            $stripe = new StripeClient(config('cashier.secret'));
+            $session = $stripe->checkout->sessions->retrieve($sessionId);
+
+            // Verify session belongs to current user
+            if ($session->customer !== Auth::user()->stripe_id) {
+                \Log::warning('Checkout session customer mismatch', [
+                    'session_id' => $sessionId,
+                    'session_customer' => $session->customer,
+                    'user_stripe_id' => Auth::user()->stripe_id,
+                ]);
+                return redirect()->route('dashboard')->with('error', 'Invalid session.');
+            }
+
+            \Log::info('Checkout success accessed - server will be created via webhook', [
+                'session_id' => $sessionId,
+                'user_id' => Auth::id(),
+                'payment_status' => $session->payment_status,
+            ]);
+
+            // Don't create servers here - let webhooks handle it
+            return Inertia::render('store/checkout-success', [
+                'sessionId' => $sessionId,
+                'paymentStatus' => $session->payment_status,
+                'message' => 'Payment successful! Your server is being created and will appear in your dashboard shortly.'
+            ]);
+
+        } catch (\Throwable $e) {
+            \Log::error('Checkout success page error: ' . $e->getMessage(), [
+                'session_id' => $sessionId,
+                'user_id' => Auth::id(),
+            ]);
+
+            return redirect()->route('dashboard')->with('error', 'There was an issue processing your order. Please contact support.');
+        }
     }
 
     public function cancel(Request $request)

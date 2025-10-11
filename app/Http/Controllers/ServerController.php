@@ -140,7 +140,7 @@ class ServerController extends Controller
                 'subscription_id' => $server->subscription_id,
                 'trace' => $e->getTraceAsString()
             ]);
-            return back()->withErrors(['cancel' => 'Failed to cancel subscription: ' . $e->getMessage()]);
+            return back()->withErrors(['cancel' => 'Failed to cancel subscription. Please try again or contact support.']);
         }
     }
 
@@ -157,13 +157,33 @@ class ServerController extends Controller
                 return back()->withErrors(['billing' => 'No subscription found for this server.']);
             }
 
+            // Validate plan_id exists and is safe
+            if (!preg_match('/^[a-zA-Z0-9_-]+$/', $server->plan_id)) {
+                \Log::error('Invalid plan_id format detected', ['plan_id' => $server->plan_id]);
+                return back()->withErrors(['billing' => 'Invalid server configuration.']);
+            }
+
             $prices = Config::get('plans.prices');
 
-            if (!isset($prices[$server->plan_id][$validated['billing']])) {
-                return back()->withErrors(['billing' => 'No matching price configured.']);
+            // Safely check for price configuration
+            if (!is_array($prices) ||
+                !isset($prices[$server->plan_id]) ||
+                !is_array($prices[$server->plan_id]) ||
+                !isset($prices[$server->plan_id][$validated['billing']])) {
+                \Log::warning('Price configuration not found', [
+                    'plan_id' => $server->plan_id,
+                    'billing' => $validated['billing']
+                ]);
+                return back()->withErrors(['billing' => 'No matching price configured for this plan.']);
             }
 
             $newPriceId = $prices[$server->plan_id][$validated['billing']];
+
+            // Validate the price ID format (Stripe price IDs)
+            if (!preg_match('/^price_[a-zA-Z0-9]+$/', $newPriceId)) {
+                \Log::error('Invalid price_id format detected', ['price_id' => $newPriceId]);
+                return back()->withErrors(['billing' => 'Invalid price configuration.']);
+            }
 
             \Log::info('Attempting billing switch', [
                 'server_id' => $server->id,
@@ -222,7 +242,7 @@ class ServerController extends Controller
                 'subscription_id' => $server->subscription_id,
                 'trace' => $e->getTraceAsString()
             ]);
-            return back()->withErrors(['billing' => 'Failed to switch billing: ' . $e->getMessage()]);
+            return back()->withErrors(['billing' => 'Failed to switch billing cycle. Please try again or contact support.']);
         }
     }
 
@@ -313,7 +333,7 @@ class ServerController extends Controller
                 'server_id' => $server->id,
                 'trace' => $e->getTraceAsString(),
             ]);
-            return back()->withErrors(['remove' => 'Failed to remove server: ' . $e->getMessage()]);
+            return back()->withErrors(['remove' => 'Failed to remove server. Please try again or contact support.']);
         }
     }
 }
