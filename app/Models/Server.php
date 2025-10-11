@@ -24,19 +24,25 @@ class Server extends Model
     //     'status',
     // ];
 
+    // Only allow user-inputable fields in fillable array
     protected $fillable = [
-        'user_id',
-        'plan_id',
-        'plan_tier',
+        'server_name',
         'game',
         'game_variant',
         'region',
-        'server_name',
+        'plan_id',
+        'plan_tier',
         'billing_cycle',
+    ];
+
+    // Protect sensitive system fields from mass assignment
+    protected $guarded = [
+        'id',
+        'user_id',
         'status',
-        'stripe_checkout_id',
         'subscription_id',
         'subscription_name',
+        'stripe_checkout_id',
         'pterodactyl_server_id',
         'pterodactyl_uuid',
         'pterodactyl_identifier',
@@ -45,6 +51,8 @@ class Server extends Model
         'provision_error',
         'external_id',
         'pending_billing_cycle',
+        'created_at',
+        'updated_at',
     ];
 
     public function user()

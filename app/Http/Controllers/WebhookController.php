@@ -12,6 +12,32 @@ class WebhookController extends CashierController
 {
     public function __invoke(Request $request)
     {
+        // Verify Stripe webhook signature for security
+        $payload = $request->getContent();
+        $signature = $request->header('Stripe-Signature');
+        $endpoint_secret = config('cashier.webhook.secret');
+
+        if (!$endpoint_secret) {
+            Log::error('Webhook signature verification failed: No endpoint secret configured');
+            return response('Webhook secret not configured', 500);
+        }
+
+        try {
+            \Stripe\Webhook::constructEvent($payload, $signature, $endpoint_secret);
+            Log::info('Webhook signature verified successfully');
+        } catch (\Stripe\Exception\SignatureVerificationException $e) {
+            Log::warning('Invalid webhook signature received', [
+                'signature' => $signature,
+                'error' => $e->getMessage()
+            ]);
+            return response('Invalid signature', 400);
+        } catch (\Exception $e) {
+            Log::error('Webhook signature verification error', [
+                'error' => $e->getMessage()
+            ]);
+            return response('Signature verification failed', 400);
+        }
+
         return $this->handleWebhook($request);
     }
     public function handleCheckoutSessionCompleted(array $payload)

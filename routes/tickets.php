@@ -20,11 +20,13 @@ Route::middleware(['auth', 'verified'])->prefix('dashboard')->name('dashboard.')
     Route::post('tickets/{ticket}/delete', [\App\Http\Controllers\TicketController::class, 'destroy'])
         ->name('tickets.destroy');
 
-    // Admin ticket routes
-    Route::get('admin/tickets', [\App\Http\Controllers\TicketController::class, 'adminIndex'])
-        ->name('admin.tickets');
-    Route::post('admin/tickets/{ticket}/reply', [\App\Http\Controllers\TicketController::class, 'adminReply'])
-        ->name('admin.tickets.reply');
-    Route::post('admin/tickets/{ticket}/status', [\App\Http\Controllers\TicketController::class, 'adminSetStatus'])
-        ->name('admin.tickets.status');
+    // Admin ticket routes - protected with admin middleware
+    Route::middleware([\App\Http\Middleware\EnsureAdmin::class])->group(function () {
+        Route::get('admin/tickets', [\App\Http\Controllers\TicketController::class, 'adminIndex'])
+            ->name('admin.tickets');
+        Route::post('admin/tickets/{ticket}/reply', [\App\Http\Controllers\TicketController::class, 'adminReply'])
+            ->name('admin.tickets.reply');
+        Route::post('admin/tickets/{ticket}/status', [\App\Http\Controllers\TicketController::class, 'adminSetStatus'])
+            ->name('admin.tickets.status');
+    });
 });
