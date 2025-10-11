@@ -39,6 +39,19 @@ class ProvisionServer implements ShouldQueue
             return;
         }
 
+        // CRITICAL: Verify payment before provisioning
+        if (!$this->verifyActiveSubscription($server)) {
+            Log::warning('Provisioning blocked: No active subscription or payment not confirmed', [
+                'server_id' => $server->id,
+                'status' => $server->status,
+                'subscription_id' => $server->subscription_id,
+            ]);
+            $server->provision_status = 'failed';
+            $server->provision_error = 'Payment not confirmed';
+            $server->save();
+            return;
+        }
+
         // Mark provisioning
         $server->provision_status = 'provisioning';
         $server->save();
@@ -227,5 +240,54 @@ class ProvisionServer implements ShouldQueue
         $server->pterodactyl_uuid = $attrs['uuid'] ?? $server->pterodactyl_uuid;
         $server->pterodactyl_identifier = $attrs['identifier'] ?? $server->pterodactyl_identifier;
         $server->pterodactyl_internal_id = $attrs['internal_id'] ?? $server->pterodactyl_internal_id;
+    }
+
+    /**
+     * Verify that the server has an active, paid subscription before provisioning
+     */
+    protected function verifyActiveSubscription(Server $server): bool
+    {
+        // Must have a subscription ID
+        if (!$server->subscription_id) {
+            Log::warning('No subscription_id set for server', ['server_id' => $server->id]);
+            return false;
+        }
+
+        // Server status must be 'active' (only set after payment confirmation)
+        if ($server->status !== 'active') {
+            Log::warning('Server status is not active', [
+                'server_id' => $server->id,
+                'status' => $server->status
+            ]);
+            return false;
+        }
+
+        // Additional check: Verify subscription exists and is active in Stripe
+        try {
+            $stripe = new \Stripe\StripeClient(config('cashier.secret'));
+            $subscription = $stripe->subscriptions->retrieve($server->subscription_id);
+
+            if ($subscription->status !== 'active') {
+                Log::warning('Stripe subscription is not active', [
+                    'server_id' => $server->id,
+                    'subscription_id' => $server->subscription_id,
+                    'stripe_status' => $subscription->status
+                ]);
+                return false;
+            }
+
+            Log::info('Payment verification successful', [
+                'server_id' => $server->id,
+                'subscription_id' => $server->subscription_id,
+            ]);
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('Failed to verify subscription with Stripe: ' . $e->getMessage(), [
+                'server_id' => $server->id,
+                'subscription_id' => $server->subscription_id,
+            ]);
+            return false;
+        }
     }
 }

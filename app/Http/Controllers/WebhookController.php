@@ -59,14 +59,27 @@ class WebhookController extends CashierController
                     $subscriptionId = $session['subscription'] ?? null;
 
                     if ($subscriptionId) {
-                        // Create server with payment confirmed
-                        $server = Server::create(array_merge($serverConfig, [
+                        Log::info('Creating server from checkout session', [
+                            'server_config' => $serverConfig,
                             'subscription_id' => $subscriptionId,
-                            'subscription_name' => $session['client_reference_id'] ?? 'server_' . time(),
-                            'stripe_checkout_id' => $session['id'],
-                            'status' => 'active',
-                            'provision_status' => 'pending',
-                        ]));
+                        ]);
+
+                        // Create server with payment confirmed - manually set user_id since it's guarded
+                        $server = new Server();
+                        $server->user_id = $serverConfig['user_id'];
+                        $server->plan_id = $serverConfig['plan_id'];
+                        $server->plan_tier = $serverConfig['plan_tier'];
+                        $server->game = $serverConfig['game'];
+                        $server->game_variant = $serverConfig['game_variant'] ?? null;
+                        $server->region = $serverConfig['region'];
+                        $server->server_name = $serverConfig['server_name'];
+                        $server->billing_cycle = $serverConfig['billing_cycle'];
+                        $server->subscription_id = $subscriptionId;
+                        $server->subscription_name = $session['client_reference_id'] ?? 'server_' . time();
+                        $server->stripe_checkout_id = $session['id'];
+                        $server->status = 'active';
+                        $server->provision_status = 'pending';
+                        $server->save();
 
                         Log::info('Server created from confirmed checkout session', [
                             'server_id' => $server->id,

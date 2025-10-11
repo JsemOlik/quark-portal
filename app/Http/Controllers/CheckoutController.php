@@ -135,12 +135,13 @@ class CheckoutController extends Controller
             $stripe = new StripeClient(config('cashier.secret'));
             $session = $stripe->checkout->sessions->retrieve($sessionId);
 
-            // Verify session belongs to current user
-            if ($session->customer !== Auth::user()->stripe_id) {
+            // Verify session belongs to current user (allow if user doesn't have stripe_id yet)
+            $userStripeId = Auth::user()->stripe_id;
+            if ($userStripeId && $session->customer !== $userStripeId) {
                 \Log::warning('Checkout session customer mismatch', [
                     'session_id' => $sessionId,
                     'session_customer' => $session->customer,
-                    'user_stripe_id' => Auth::user()->stripe_id,
+                    'user_stripe_id' => $userStripeId,
                 ]);
                 return redirect()->route('dashboard')->with('error', 'Invalid session.');
             }
@@ -170,17 +171,14 @@ class CheckoutController extends Controller
 
     public function cancel(Request $request)
     {
-        $serverId = (int) $request->query('server');
-        if ($serverId) {
-            $server = Server::where('id', $serverId)
-                ->where('user_id', Auth::id())
-                ->first();
-            if ($server) {
-                $server->status = 'cancelled';
-                $server->save();
-            }
-        }
+        $sessionId = $request->query('session_id');
 
-        return redirect()->route('store.configure');
+        \Log::info('Checkout cancelled', [
+            'session_id' => $sessionId,
+            'user_id' => Auth::id(),
+        ]);
+
+        // No server to clean up since we don't create it until payment succeeds
+        return redirect()->route('store.configure')->with('info', 'Checkout cancelled. No charges have been made.');
     }
 }

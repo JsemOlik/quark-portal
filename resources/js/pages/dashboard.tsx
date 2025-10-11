@@ -2,6 +2,7 @@ import { Head, Link } from '@inertiajs/react';
 import Navbar from '@/components/navbar';
 import { ArrowRight, Headphones } from 'lucide-react';
 import { formatGameName } from '@/lib/utils/formatGameName';
+import { Button } from '@/components/ui/button';
 
 type Server = {
   id: number;
@@ -204,18 +205,24 @@ export default function DashboardPage({
                 </p>
               </div>
               <div className="flex md:justify-end gap-3">
+                <a href="https://discord.gg/yrn667jjD7" target="_blank" rel="noreferrer">
+                  <Button size="lg" className="border border-[#5865F2] bg-[#5865F2] text-white px-4 py-6 text-sm font-semibold hover:bg-[#5865F2]/80 transition-colors inline-flex items-center gap-3">
+                    <img src="/discordwhite.svg" className="h-7 w-7" />
+                    Contact on Discord
+                  </Button>
+                </a>
                 <Link href="/dashboard/tickets">
-                  <button className="rounded-xl bg-brand text-brand-brown px-6 py-3 text-sm font-semibold hover:bg-brand/90 transition-colors inline-flex items-center gap-2">
-                    <Headphones className="h-5 w-5" />
+                  <Button size="lg" className="bg-brand text-brand-brown px-4 py-6 text-sm font-semibold hover:bg-brand/90 transition-colors inline-flex items-center gap-2">
+                    <Headphones className="h-7 w-7" />
                     Contact Support
-                  </button>
+                  </Button>
                 </Link>
 
                 {isAdmin && (
                   <Link href="/dashboard/admin/tickets">
-                    <button className="rounded-xl border border-white/20 text-brand-cream px-6 py-3 text-sm font-semibold hover:bg-white/10 transition-colors">
+                    <Button size="lg" className="border border-white/20 text-brand-cream px-6 py-3 text-sm font-semibold hover:bg-white/10 transition-colors">
                       Admin Tickets
-                    </button>
+                    </Button>
                   </Link>
                 )}
               </div>
