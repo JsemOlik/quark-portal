@@ -55,7 +55,7 @@
             opacity: 0.8;
         }
         .content {
-            padding: 20px 30px;
+            padding: 2px 30px;
             color: #FFEDD9;
             font-size: 15px;
             line-height: 1.5;

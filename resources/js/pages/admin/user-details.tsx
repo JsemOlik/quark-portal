@@ -1,7 +1,7 @@
 import React from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import Navbar from '@/components/navbar';
-import { ArrowLeft, Mail, Calendar, CreditCard, Server as ServerIcon, MapPin, ExternalLink, Send, History, FileText } from 'lucide-react';
+import { ArrowLeft, Mail, Calendar, CreditCard, Server as ServerIcon, MapPin, ExternalLink, Send, History, FileText, ScrollText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -451,9 +451,13 @@ export default function AdminUserDetails({
 
                             {/* Invoices */}
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                                <h2 className="mb-4 text-lg font-semibold text-brand-cream">
-                                    Recent Invoices ({invoices.length})
-                                </h2>
+                                <div className="mb-4 flex items-center gap-2">
+                                    <ScrollText className="h-5 w-5 text-brand" />
+                                    <h2 className="text-lg font-semibold text-brand-cream">
+                                        Recent Invoices ({invoices.length})
+                                    </h2>
+                                </div>
+
 
                                 {invoices.length === 0 ? (
                                     <div className="rounded-xl border border-white/10 bg-white/5 p-8 text-center">
