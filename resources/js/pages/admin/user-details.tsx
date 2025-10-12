@@ -11,6 +11,13 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 
 type User = {
     id: number;
@@ -127,6 +134,20 @@ export default function AdminUserDetails({
         setEmailMessage(template.message);
     }
 
+    function handleRoleChange(value: string) {
+        const isAdmin = value === 'admin';
+        router.post(
+            `/admin/users/${user.id}/update-role`,
+            {
+                _token: csrf ?? '',
+                is_admin: isAdmin,
+            },
+            {
+                preserveScroll: true,
+            }
+        );
+    }
+
     function handleSendEmail(e: React.FormEvent) {
         e.preventDefault();
         if (loading) return;
@@ -238,7 +259,7 @@ export default function AdminUserDetails({
 
                                     <div className="flex items-start gap-3">
                                         <CreditCard className="h-5 w-5 text-brand-cream/60 mt-0.5" />
-                                        <div>
+                                        <div className="flex-1">
                                             <div className="text-xs text-brand-cream/60 mb-1">
                                                 Stripe Customer ID
                                             </div>
@@ -246,6 +267,21 @@ export default function AdminUserDetails({
                                                 {user.stripe_id || 'N/A'}
                                             </div>
                                         </div>
+                                    </div>
+
+                                    <div className="pt-3 border-t border-white/10">
+                                        <label htmlFor="role" className="block text-xs text-brand-cream/60 mb-2">
+                                            User Role
+                                        </label>
+                                        <Select value={user.is_admin ? 'admin' : 'customer'} onValueChange={handleRoleChange}>
+                                            <SelectTrigger className="w-full rounded-xl bg-white/5 border-white/10 text-brand-cream">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-[#1a1714] border-white/10">
+                                                <SelectItem value="customer" className="text-brand-cream hover:bg-white/10">Customer</SelectItem>
+                                                <SelectItem value="admin" className="text-brand-cream hover:bg-white/10">Admin</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                 </div>
                             </div>

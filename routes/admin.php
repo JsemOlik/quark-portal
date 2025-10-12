@@ -11,4 +11,5 @@ Route::middleware(['auth', 'verified', 'admin'])
         Route::get('/servers', [AdminController::class, 'servers'])->name('servers');
         Route::get('/users/{user}', [AdminController::class, 'userDetails'])->name('users.show');
         Route::post('/users/{user}/send-email', [AdminController::class, 'sendEmail'])->name('users.sendEmail');
+        Route::post('/users/{user}/update-role', [AdminController::class, 'updateRole'])->name('users.updateRole');
     });

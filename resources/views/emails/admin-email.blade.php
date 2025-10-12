@@ -58,7 +58,7 @@
             padding: 20px 30px;
             color: #FFEDD9;
             font-size: 15px;
-            line-height: 1.8;
+            line-height: 1.5;
             white-space: pre-wrap;
             word-wrap: break-word;
             background: #110F0D;

@@ -265,4 +265,27 @@ class AdminController extends Controller
             return back()->withErrors(['email' => 'Failed to send email. Please try again or check your SMTP configuration.']);
         }
     }
+
+    public function updateRole(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'is_admin' => ['required', 'boolean'],
+        ]);
+
+        // Prevent admins from removing their own admin role
+        if ($user->id === auth()->id() && !$validated['is_admin']) {
+            return back()->withErrors(['role' => 'You cannot remove your own admin role.']);
+        }
+
+        $user->is_admin = $validated['is_admin'];
+        $user->save();
+
+        Log::info('Admin updated user role', [
+            'admin_id' => auth()->id(),
+            'user_id' => $user->id,
+            'is_admin' => $validated['is_admin'],
+        ]);
+
+        return back()->with('success', 'User role updated successfully.');
+    }
 }
