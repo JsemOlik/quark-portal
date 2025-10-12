@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Server;
+use App\Models\AdminEmail as AdminEmailModel;
 use App\Mail\AdminEmail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -164,6 +165,22 @@ class AdminController extends Controller
             ]);
         }
 
+        // Get previous emails sent to this user
+        $previousEmails = AdminEmailModel::where('user_id', $user->id)
+            ->with('admin:id,name')
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(function ($email) {
+                return [
+                    'id' => $email->id,
+                    'subject' => $email->subject,
+                    'message' => $email->message,
+                    'cc_emails' => $email->cc_emails,
+                    'admin_name' => $email->admin->name ?? 'Unknown',
+                    'sent_at' => $email->created_at->format('Y-m-d H:i:s'),
+                ];
+            });
+
         return Inertia::render('admin/user-details', [
             'user' => [
                 'id' => $user->id,
@@ -180,6 +197,7 @@ class AdminController extends Controller
             'servers' => $servers,
             'subscriptions' => $subscriptions,
             'invoices' => $invoices,
+            'previousEmails' => $previousEmails,
             'csrf' => csrf_token(),
         ]);
     }
@@ -220,12 +238,21 @@ class AdminController extends Controller
                 }
             }
 
+            // Save email to database
+            AdminEmailModel::create([
+                'user_id' => $user->id,
+                'admin_id' => auth()->id(),
+                'subject' => $fullSubject,
+                'message' => $validated['message'],
+                'cc_emails' => !empty($ccEmails) ? implode(', ', $ccEmails) : null,
+            ]);
+
             Log::info('Admin sent email to user', [
                 'admin_id' => auth()->id(),
                 'user_id' => $user->id,
                 'user_email' => $user->email,
                 'cc_emails' => $ccEmails,
-                'subject' => $validated['subject'],
+                'subject' => $fullSubject,
             ]);
 
             return back()->with('success', 'Email sent successfully to ' . $user->email .

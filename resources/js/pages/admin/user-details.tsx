@@ -1,8 +1,16 @@
 import React from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import Navbar from '@/components/navbar';
-import { ArrowLeft, Mail, Calendar, CreditCard, Server as ServerIcon, MapPin, ExternalLink, Send } from 'lucide-react';
+import { ArrowLeft, Mail, Calendar, CreditCard, Server as ServerIcon, MapPin, ExternalLink, Send, History, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 type User = {
     id: number;
@@ -41,21 +49,61 @@ type Invoice = {
     hosted_invoice_url: string | null;
 };
 
+type PreviousEmail = {
+    id: number;
+    subject: string;
+    message: string;
+    cc_emails: string | null;
+    admin_name: string;
+    sent_at: string;
+};
+
 type FlashMessages = {
     success?: string;
     error?: string;
 };
 
+type EmailTemplate = {
+    name: string;
+    subject: string;
+    message: string;
+};
+
+const EMAIL_TEMPLATES: EmailTemplate[] = [
+    {
+        name: 'Payment Issue',
+        subject: 'Payment Issue with Your Account',
+        message: 'Hello,\n\nWe noticed there was an issue processing your recent payment. Please update your payment method in your customer portal, which can be found in the dashboard, to avoid any service interruptions.\n\nIf you have any questions, feel free to reach out to our support team.\n\nBest regards,\nThe Support Team',
+    },
+    {
+        name: 'Account Suspended',
+        subject: 'Your Account Has Been Suspended',
+        message: 'Hello,\n\nYour account has been temporarily suspended due to [REASON]. To restore access, please [ACTION REQUIRED].\n\nIf you believe this is a mistake, please contact our support team immediately.\n\nBest regards,\nThe Support Team',
+    },
+    {
+        name: 'Server Maintenance',
+        subject: 'Scheduled Server Maintenance',
+        message: 'Hello,\n\nWe will be performing scheduled maintenance on our servers on [DATE] at [TIME]. Expected downtime is approximately [DURATION].\n\nWe apologize for any inconvenience this may cause.\n\nBest regards,\nThe Support Team',
+    },
+    {
+        name: 'Billing Inquiry Response',
+        subject: 'Response to Your Billing Inquiry',
+        message: 'Hello,\n\nThank you for reaching out regarding your billing inquiry. [PROVIDE SPECIFIC RESPONSE HERE]\n\nIf you have any additional questions, please don\'t hesitate to contact us.\n\nBest regards,\nThe Support Team',
+    },
+];
+
 export default function AdminUserDetails({
     user,
     servers,
     invoices,
+    previousEmails,
     csrf,
     flash,
 }: {
     user: User;
     servers: Server[];
     invoices: Invoice[];
+    previousEmails: PreviousEmail[];
     csrf?: string;
     flash?: FlashMessages;
 }) {
@@ -64,6 +112,7 @@ export default function AdminUserDetails({
     const [ccEmails, setCcEmails] = React.useState('');
     const [loading, setLoading] = React.useState(false);
     const [showNotification, setShowNotification] = React.useState(false);
+    const [showEmailHistory, setShowEmailHistory] = React.useState(false);
 
     React.useEffect(() => {
         if (flash?.success || flash?.error) {
@@ -72,6 +121,11 @@ export default function AdminUserDetails({
             return () => clearTimeout(timer);
         }
     }, [flash]);
+
+    function handleTemplateSelect(template: EmailTemplate) {
+        setEmailSubject(template.subject);
+        setEmailMessage(template.message);
+    }
 
     function handleSendEmail(e: React.FormEvent) {
         e.preventDefault();
@@ -411,12 +465,98 @@ export default function AdminUserDetails({
 
                             {/* Send Email */}
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                                <div className="mb-4 flex items-center gap-2">
-                                    <Send className="h-5 w-5 text-brand" />
-                                    <h2 className="text-lg font-semibold text-brand-cream">
-                                        Send Email to {user.name}
-                                    </h2>
+                                <div className="mb-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Send className="h-5 w-5 text-brand" />
+                                        <h2 className="text-lg font-semibold text-brand-cream">
+                                            Send Email to {user.name}
+                                        </h2>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    className="inline-flex items-center gap-2 rounded-xl bg-white/5 text-brand-cream hover:bg-white/10 border border-white/10"
+                                                >
+                                                    <FileText className="h-4 w-4" />
+                                                    <span className="hidden sm:inline">Select Template</span>
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent className="w-56 bg-[#1a1714] border-white/10">
+                                                <DropdownMenuLabel className="text-brand-cream">Email Templates</DropdownMenuLabel>
+                                                <DropdownMenuSeparator />
+                                                {EMAIL_TEMPLATES.map((template) => (
+                                                    <DropdownMenuItem
+                                                        key={template.name}
+                                                        onClick={() => handleTemplateSelect(template)}
+                                                        className="text-brand-cream hover:bg-white/10 cursor-pointer"
+                                                    >
+                                                        {template.name}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                        <Button
+                                            type="button"
+                                            onClick={() => setShowEmailHistory(!showEmailHistory)}
+                                            className="inline-flex items-center gap-2 rounded-xl bg-white/5 text-brand-cream hover:bg-white/10 border border-white/10"
+                                            variant="ghost"
+                                        >
+                                            <History className="h-4 w-4" />
+                                            <span className="hidden sm:inline">
+                                                {showEmailHistory ? 'Hide History' : `View Previous Emails (${previousEmails.length})`}
+                                            </span>
+                                        </Button>
+                                    </div>
                                 </div>
+
+                                {showEmailHistory && previousEmails.length > 0 && (
+                                    <div className="mb-6 rounded-xl border border-white/10 bg-white/5 p-4">
+                                        <h3 className="mb-3 text-sm font-semibold text-brand-cream">
+                                            Email History
+                                        </h3>
+                                        <div className="space-y-3 max-h-96 overflow-y-auto">
+                                            {previousEmails.map((email) => (
+                                                <div
+                                                    key={email.id}
+                                                    className="rounded-lg border border-white/10 bg-white/5 p-3"
+                                                >
+                                                    <div className="mb-2 flex items-start justify-between">
+                                                        <div className="font-medium text-brand-cream text-sm">
+                                                            {email.subject}
+                                                        </div>
+                                                        <div className="text-xs text-brand-cream/60">
+                                                            {email.sent_at}
+                                                        </div>
+                                                    </div>
+                                                    <div className="mb-2 text-xs text-brand-cream/70 whitespace-pre-wrap">
+                                                        {email.message}
+                                                    </div>
+                                                    <div className="flex items-center justify-between text-xs">
+                                                        <span className="text-brand-cream/60">
+                                                            Sent by: <span className="text-brand-cream">{email.admin_name}</span>
+                                                        </span>
+                                                        {email.cc_emails && (
+                                                            <span className="text-brand-cream/60">
+                                                                CC: <span className="text-brand-cream">{email.cc_emails}</span>
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {showEmailHistory && previousEmails.length === 0 && (
+                                    <div className="mb-6 rounded-xl border border-white/10 bg-white/5 p-8 text-center">
+                                        <p className="text-sm text-brand-cream/60">
+                                            No previous emails sent to this user.
+                                        </p>
+                                    </div>
+                                )}
 
                                 <form onSubmit={handleSendEmail} className="space-y-4">
                                     <div>
@@ -444,7 +584,7 @@ export default function AdminUserDetails({
                                             value={emailMessage}
                                             onChange={(e) => setEmailMessage(e.target.value)}
                                             rows={6}
-                                            className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-brand-cream placeholder:text-brand-cream/40 focus:outline-none focus:ring-2 focus:ring-brand resize-none"
+                                            className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-brand-cream placeholder:text-brand-cream/40 focus:outline-none focus:ring-2 focus:ring-brand resize-y"
                                             placeholder="Enter your message"
                                             required
                                             maxLength={5000}
