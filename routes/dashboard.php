@@ -25,6 +25,12 @@ Route::middleware(['auth', 'verified'])
         Route::post('servers/{server}/remove', [ServerController::class, 'destroy'])
             ->name('servers.destroy');
 
+        Route::get('servers/{server}/panel', [ServerController::class, 'panel'])
+            ->name('servers.panel');
+
+        Route::post('servers/{server}/rename', [ServerController::class, 'rename'])
+            ->name('servers.rename');
+
         Route::get('invoices', fn() => Inertia\Inertia::render('invoices'))
             ->name('invoices');
 

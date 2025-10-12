@@ -102,6 +102,7 @@ class DashboardController extends Controller
             'tickets' => $tickets,
             'ticketsCount' => $ticketsCount,
             'isAdmin' => $user->is_admin,
+            'csrf' => csrf_token(),
         ]);
     }
 

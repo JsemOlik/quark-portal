@@ -52,4 +52,12 @@ class User extends Authenticatable
             'is_admin' => 'boolean',
         ];
     }
+
+    /**
+     * Get the servers for the user.
+     */
+    public function servers()
+    {
+        return $this->hasMany(Server::class);
+    }
 }

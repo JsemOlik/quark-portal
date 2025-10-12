@@ -76,6 +76,16 @@ export default function Navbar() {
                     <Link href="/dashboard">Dashboard</Link>
                   </Button>
 
+                  {auth.user.is_admin && (
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="h-8 rounded-lg border-brand/30 bg-brand/10 px-3 hover:bg-brand/20 text-brand"
+                    >
+                      <Link href="/admin">Admin</Link>
+                    </Button>
+                  )}
+
                   {/* Avatar dropdown */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -184,13 +194,24 @@ export default function Navbar() {
             ))}
             <div className="mt-2 flex flex-col gap-2 border-t border-white/10 pt-2">
               {auth?.user ? (
-                <Link
-                  href="/dashboard"
-                  onClick={() => setOpen(false)}
-                  className="rounded-xl bg-white/5 px-3 py-2 text-center hover:bg-white/10"
-                >
-                  Dashboard
-                </Link>
+                <>
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setOpen(false)}
+                    className="rounded-xl bg-white/5 px-3 py-2 text-center hover:bg-white/10"
+                  >
+                    Dashboard
+                  </Link>
+                  {auth.user.is_admin && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setOpen(false)}
+                      className="rounded-xl bg-brand/10 px-3 py-2 text-center hover:bg-brand/20 text-brand border border-brand/30"
+                    >
+                      Admin
+                    </Link>
+                  )}
+                </>
               ) : (
                 <>
                   <Link

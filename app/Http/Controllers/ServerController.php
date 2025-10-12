@@ -70,6 +70,23 @@ class ServerController extends Controller
             $invoices = [];
         }
 
+        // Get plan resources
+        $resources = null;
+        $plan = $server->plan;
+        if ($plan) {
+            $planResources = Config::get("plans.resources.{$plan->key}");
+            if ($planResources) {
+                $resources = [
+                    'memory_mb' => $planResources['memory_mb'] ?? 0,
+                    'disk_mb' => $planResources['disk_mb'] ?? 0,
+                    'cpu_percent' => $planResources['cpu_percent'] ?? 0,
+                    'databases' => $planResources['databases'] ?? 0,
+                    'backups' => $planResources['backups'] ?? 0,
+                    'allocations' => $planResources['allocations'] ?? 1,
+                ];
+            }
+        }
+
         return Inertia::render('server-show', [
             'server' => [
                 'id' => $server->id,
@@ -79,7 +96,9 @@ class ServerController extends Controller
                 'pending_billing_cycle' => $server->pending_billing_cycle,
                 'status' => $server->status,
                 'created_at' => $server->created_at,
+                'plan_name' => $plan ? ucfirst($plan->key) : null,
             ],
+            'resources' => $resources,
             'invoices' => $invoices,
             'nextBilling' => $nextBilling,
             'csrf' => csrf_token(),
@@ -334,6 +353,61 @@ class ServerController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
             return back()->withErrors(['remove' => 'Failed to remove server. Please try again or contact support.']);
+        }
+    }
+
+    public function panel(Server $server)
+    {
+        abort_unless($server->user_id === Auth::id(), 403);
+
+        if ($server->status !== 'active') {
+            return redirect()->route('dashboard.servers.show', $server)->withErrors(['panel' => 'Server must be active to access the panel.']);
+        }
+
+        if (!$server->pterodactyl_identifier) {
+            return redirect()->route('dashboard.servers.show', $server)->withErrors(['panel' => 'Panel access not available for this server.']);
+        }
+
+        // Build the Pterodactyl panel URL using PTERO_URL from .env
+        $panelBaseUrl = env('PTERO_URL', 'https://panel.example.com');
+        $panelUrl = rtrim($panelBaseUrl, '/') . '/server/' . $server->pterodactyl_identifier;
+
+        \Log::info('Redirecting to Pterodactyl panel', [
+            'server_id' => $server->id,
+            'panel_url' => $panelUrl,
+            'identifier' => $server->pterodactyl_identifier,
+        ]);
+
+        return redirect()->away($panelUrl);
+    }
+
+    public function rename(Request $request, Server $server)
+    {
+        abort_unless($server->user_id === Auth::id(), 403);
+
+        if ($server->status !== 'active') {
+            return back()->withErrors(['server_name' => 'Server must be active to rename.']);
+        }
+
+        $validated = $request->validate([
+            'server_name' => ['required', 'string', 'max:100'],
+        ]);
+
+        try {
+            $server->server_name = $validated['server_name'];
+            $server->save();
+
+            \Log::info('Server renamed', [
+                'server_id' => $server->id,
+                'new_name' => $validated['server_name'],
+            ]);
+
+            return back()->with('success', 'Server name updated successfully.');
+        } catch (\Throwable $e) {
+            \Log::error('Server rename error: ' . $e->getMessage(), [
+                'server_id' => $server->id,
+            ]);
+            return back()->withErrors(['server_name' => 'Failed to update server name. Please try again.']);
         }
     }
 }
