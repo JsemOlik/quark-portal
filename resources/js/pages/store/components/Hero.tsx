@@ -1,7 +1,5 @@
-import React from 'react';
 import GradientBackdrop from './ui/GradientBackdrop';
 import { Button } from '@/components/ui/button';
-import AppLogoIcon from '@/components/app-logo-icon';
 import { Link } from '@inertiajs/react';
 
 export default function Hero() {
@@ -49,8 +47,26 @@ export default function Hero() {
                     running in minutes with reliable hosting and straightforward
                     management.
                 </p>
-                <Link href='#specs'><Button size='lg' className='text-md text-brand-cream mr-4 mt-8'>Learn More</Button></Link>
-                <Link href='#pricing' ><Button size='lg' className='text-md text-brand-cream'>Starting at just 85Kč/month</Button></Link>
+                <Link href="#pricing">
+                    <Button
+                        size="lg"
+                        className="align-middle text-md text-brand-cream mr-4 mt-8"
+                    >
+                        Starting at just 85Kč/month
+                    </Button>
+                </Link>
+                <a href="https://discord.gg/pzd23NUj8c" target="_blank" rel="noreferrer">  <Button
+                    size="lg"
+                    className="cursor-pointer align-middle bg-[#5865F2] hover:bg-[#5865F2]/80 text-md text-white mr-4 mt-8"
+                >
+                    <img
+                        src="/discordwhite.svg"
+                        alt="Discord Logo"
+                        className="mr-2 inline-block h-7 w-7 align-middle"
+                    />
+                    Join our Discord
+                </Button>
+                </a>
             </div>
             <img src='/images/pyrodactyl-panel.png' className='mt-24' />
         </section></>

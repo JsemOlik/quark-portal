@@ -27,14 +27,14 @@ export default function DashboardPage({
     invoices = [] as any[],
     nextBillings = [] as NextBilling[],
     isAdmin = false,
-    csrf,
+    // csrf,
 }: {
     servers?: Server[];
     serversCount?: number;
     invoices?: any[];
     nextBillings?: NextBilling[];
     isAdmin?: boolean;
-    csrf?: string;
+    // csrf?: string;
 }) {
     return (
         <>

@@ -10,7 +10,7 @@ Route::get('/', function () {
 })->name('vps');
 
 Route::get('/about-us', function () {
-    return Inertia::render('about-us');
+    // return Inertia::render('about-us');
 })->name('about-us');
 
 require __DIR__ . '/store.php';
