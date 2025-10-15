@@ -1,4 +1,5 @@
 import Heading from '@/components/heading';
+import Navbar from '@/components/navbar';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -42,6 +43,8 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
     const currentPath = window.location.pathname;
 
     return (
+        <>
+        <Navbar />
         <div className="px-4 py-6">
             <Heading
                 title="Settings"
@@ -58,7 +61,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                                 variant="ghost"
                                 asChild
                                 className={cn('w-full justify-start', {
-                                    'bg-muted':
+                                    'bg-brand-cream/10':
                                         currentPath ===
                                         (typeof item.href === 'string'
                                             ? item.href
@@ -84,6 +87,6 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                     </section>
                 </div>
             </div>
-        </div>
+        </div></>
     );
 }

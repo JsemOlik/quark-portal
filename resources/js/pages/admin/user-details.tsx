@@ -1,7 +1,7 @@
 import React from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import Navbar from '@/components/navbar';
-import { ArrowLeft, Mail, Calendar, CreditCard, Server as ServerIcon, MapPin, ExternalLink, Send, History, FileText, ScrollText } from 'lucide-react';
+import { ArrowLeft, Mail, Calendar, CreditCard, Server as ServerIcon, MapPin, ExternalLink, Send, History, FileText, ScrollText, KeyRound, Trash2, AlertTriangle, PauseCircle, PlayCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -18,6 +18,17 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 
 type User = {
     id: number;
@@ -43,6 +54,7 @@ type Server = {
     subscription_id: string | null;
     subscription_period_end: string | null;
     pterodactyl_server_id: number | null;
+    pterodactyl_identifier: string | null;
     created_at: string;
 };
 
@@ -104,6 +116,7 @@ export default function AdminUserDetails({
     servers,
     invoices,
     previousEmails,
+    pterodactylUrl,
     csrf,
     flash,
 }: {
@@ -111,6 +124,7 @@ export default function AdminUserDetails({
     servers: Server[];
     invoices: Invoice[];
     previousEmails: PreviousEmail[];
+    pterodactylUrl: string;
     csrf?: string;
     flash?: FlashMessages;
 }) {
@@ -120,6 +134,15 @@ export default function AdminUserDetails({
     const [loading, setLoading] = React.useState(false);
     const [showNotification, setShowNotification] = React.useState(false);
     const [showEmailHistory, setShowEmailHistory] = React.useState(false);
+    const [newEmail, setNewEmail] = React.useState('');
+    const [newPassword, setNewPassword] = React.useState('');
+    const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
+    const [showPasswordResetDialog, setShowPasswordResetDialog] = React.useState(false);
+    const [showSuspendDialog, setShowSuspendDialog] = React.useState(false);
+    const [showUnsuspendDialog, setShowUnsuspendDialog] = React.useState(false);
+    const [showCancelDialog, setShowCancelDialog] = React.useState(false);
+    const [cancelServerId, setCancelServerId] = React.useState<number | null>(null);
+    const [cancelType, setCancelType] = React.useState<'immediate' | 'period_end'>('period_end');
 
     React.useEffect(() => {
         if (flash?.success || flash?.error) {
@@ -139,11 +162,120 @@ export default function AdminUserDetails({
         router.post(
             `/admin/users/${user.id}/update-role`,
             {
-                _token: csrf ?? '',
                 is_admin: isAdmin,
             },
             {
                 preserveScroll: true,
+            }
+        );
+    }
+
+    function handleSendPasswordReset() {
+        router.post(
+            `/admin/users/${user.id}/send-password-reset`,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setShowPasswordResetDialog(false);
+                },
+            }
+        );
+    }
+
+    function handleUpdateEmail(e: React.FormEvent) {
+        e.preventDefault();
+        if (!newEmail) return;
+
+        router.post(
+            `/admin/users/${user.id}/update-email`,
+            {
+                email: newEmail,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setNewEmail('');
+                },
+                onError: (errors) => {
+                    console.error('Email update error:', errors);
+                }
+            }
+        );
+    }
+
+    function handleUpdatePassword(e: React.FormEvent) {
+        e.preventDefault();
+        if (!newPassword) return;
+
+        router.post(
+            `/admin/users/${user.id}/update-password`,
+            {
+                password: newPassword,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setNewPassword('');
+                },
+            }
+        );
+    }
+
+    function handleDeleteAccount() {
+        router.delete(`/admin/users/${user.id}/delete-account`, {
+            preserveScroll: false,
+            onSuccess: () => {
+                setShowDeleteDialog(false);
+            },
+            onError: (errors) => {
+                console.error('Delete account error:', errors);
+                setShowDeleteDialog(false);
+            }
+        });
+    }
+
+    function handleSuspendServers() {
+        router.post(
+            `/admin/users/${user.id}/suspend-servers`,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setShowSuspendDialog(false);
+                },
+            }
+        );
+    }
+
+    function handleUnsuspendServers() {
+        router.post(
+            `/admin/users/${user.id}/unsuspend-servers`,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setShowUnsuspendDialog(false);
+                },
+            }
+        );
+    }
+
+    function handleCancelService() {
+        if (!cancelServerId) return;
+
+        router.post(
+            `/admin/users/${user.id}/servers/${cancelServerId}/cancel`,
+            {
+                cancel_type: cancelType,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setShowCancelDialog(false);
+                    setCancelServerId(null);
+                    setCancelType('period_end');
+                },
             }
         );
     }
@@ -352,6 +484,240 @@ export default function AdminUserDetails({
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Account Actions */}
+                            <div className="rounded-2xl border border-brand-cream/10 bg-brand-cream/5 p-5">
+                                <h2 className="mb-4 text-lg font-semibold text-brand-cream">
+                                    Account Actions
+                                </h2>
+                                <div className="space-y-3">
+                                    {/* Change Email */}
+                                    <form onSubmit={handleUpdateEmail} className="space-y-2">
+                                        <label htmlFor="new-email" className="block text-xs text-brand-cream/60">
+                                            Change Email Address
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="email"
+                                                id="new-email"
+                                                value={newEmail}
+                                                onChange={(e) => setNewEmail(e.target.value)}
+                                                className="flex-1 rounded-xl bg-brand-cream/5 border border-brand-cream/10 px-3 py-2 text-sm text-brand-cream placeholder:text-brand-cream/40 focus:outline-none focus:ring-2 focus:ring-brand"
+                                                placeholder="new@email.com"
+                                            />
+                                            <Button
+                                                type="submit"
+                                                disabled={!newEmail}
+                                                className="rounded-xl bg-brand text-brand-brown hover:bg-brand/80 disabled:opacity-50"
+                                            >
+                                                Update
+                                            </Button>
+                                        </div>
+                                    </form>
+
+                                    {/* Change Password */}
+                                    <form onSubmit={handleUpdatePassword} className="space-y-2">
+                                        <label htmlFor="new-password" className="block text-xs text-brand-cream/60">
+                                            Set New Password
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="password"
+                                                id="new-password"
+                                                name="new-password"
+                                                value={newPassword}
+                                                onChange={(e) => setNewPassword(e.target.value)}
+                                                className="flex-1 rounded-xl bg-brand-cream/5 border border-brand-cream/10 px-3 py-2 text-sm text-brand-cream placeholder:text-brand-cream/40 focus:outline-none focus:ring-2 focus:ring-brand"
+                                                placeholder="New password (min 8 characters)"
+                                                minLength={8}
+                                                autoComplete="new-password"
+                                            />
+                                            <Button
+                                                type="submit"
+                                                disabled={!newPassword || newPassword.length < 8}
+                                                className="rounded-xl bg-brand text-brand-brown hover:bg-brand/80 disabled:opacity-50"
+                                            >
+                                                Update
+                                            </Button>
+                                        </div>
+                                    </form>
+
+                                    {/* Password Reset */}
+                                    <Dialog open={showPasswordResetDialog} onOpenChange={setShowPasswordResetDialog}>
+                                        <DialogTrigger asChild>
+                                            <Button
+                                                className="w-full justify-start gap-2 rounded-xl bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20"
+                                                variant="ghost"
+                                            >
+                                                <KeyRound className="h-4 w-4" />
+                                                Send Password Reset
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="bg-[#1a1714] border-brand-cream/10">
+                                            <DialogHeader>
+                                                <DialogTitle className="text-brand-cream">
+                                                    Send Password Reset Email
+                                                </DialogTitle>
+                                                <DialogDescription className="text-brand-cream/70">
+                                                    Send a password reset link to <span className="font-semibold text-brand-cream">{user.email}</span>?
+                                                </DialogDescription>
+                                            </DialogHeader>
+                                            <DialogFooter>
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={() => setShowPasswordResetDialog(false)}
+                                                    className="rounded-xl border-brand-cream/10 text-brand-cream hover:bg-brand-cream/10"
+                                                >
+                                                    Cancel
+                                                </Button>
+                                                <Button
+                                                    onClick={handleSendPasswordReset}
+                                                    className="rounded-xl bg-blue-500 text-white hover:bg-blue-600"
+                                                >
+                                                    Send Reset Email
+                                                </Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
+
+                                    {/* Suspend/Unsuspend Buttons */}
+                                    <div className="flex gap-2">
+                                        {/* Suspend Dialog */}
+                                        <Dialog open={showSuspendDialog} onOpenChange={setShowSuspendDialog}>
+                                            <DialogTrigger asChild>
+                                                <Button
+                                                    className="flex-1 justify-center gap-2 rounded-xl bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 border border-yellow-500/20"
+                                                    variant="ghost"
+                                                    disabled={servers.filter(s => s.status === 'active').length === 0}
+                                                >
+                                                    <PauseCircle className="h-4 w-4" />
+                                                    Suspend
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="bg-[#1a1714] border-brand-cream/10">
+                                                <DialogHeader>
+                                                    <DialogTitle className="flex items-center gap-2 text-brand-cream">
+                                                        <PauseCircle className="h-5 w-5 text-yellow-400" />
+                                                        Suspend All Servers
+                                                    </DialogTitle>
+                                                    <DialogDescription className="text-brand-cream/70">
+                                                        Are you sure you want to suspend all active servers for <span className="font-semibold text-brand-cream">{user.name}</span>?
+                                                    </DialogDescription>
+                                                </DialogHeader>
+                                                <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-3 my-4">
+                                                    <p className="text-sm text-yellow-400">
+                                                        <strong>Note:</strong> All active servers will be suspended both in the portal and in the Pterodactyl panel. This action will affect {servers.filter(s => s.status === 'active').length} server(s).
+                                                    </p>
+                                                </div>
+                                                <DialogFooter>
+                                                    <Button
+                                                        variant="outline"
+                                                        onClick={() => setShowSuspendDialog(false)}
+                                                        className="rounded-xl border-brand-cream/10 text-brand-cream hover:bg-brand-cream/10"
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                    <Button
+                                                        onClick={handleSuspendServers}
+                                                        className="rounded-xl bg-yellow-500 text-white hover:bg-yellow-600"
+                                                    >
+                                                        Suspend Servers
+                                                    </Button>
+                                                </DialogFooter>
+                                            </DialogContent>
+                                        </Dialog>
+
+                                        {/* Unsuspend Dialog */}
+                                        <Dialog open={showUnsuspendDialog} onOpenChange={setShowUnsuspendDialog}>
+                                            <DialogTrigger asChild>
+                                                <Button
+                                                    className="flex-1 justify-center gap-2 rounded-xl bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20"
+                                                    variant="ghost"
+                                                    disabled={servers.filter(s => s.status === 'suspended').length === 0}
+                                                >
+                                                    <PlayCircle className="h-4 w-4" />
+                                                    Unsuspend
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="bg-[#1a1714] border-brand-cream/10">
+                                                <DialogHeader>
+                                                    <DialogTitle className="flex items-center gap-2 text-brand-cream">
+                                                        <PlayCircle className="h-5 w-5 text-green-400" />
+                                                        Unsuspend All Servers
+                                                    </DialogTitle>
+                                                    <DialogDescription className="text-brand-cream/70">
+                                                        Are you sure you want to unsuspend all suspended servers for <span className="font-semibold text-brand-cream">{user.name}</span>?
+                                                    </DialogDescription>
+                                                </DialogHeader>
+                                                <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-3 my-4">
+                                                    <p className="text-sm text-green-400">
+                                                        <strong>Note:</strong> All suspended servers will be reactivated both in the portal and in the Pterodactyl panel. This action will affect {servers.filter(s => s.status === 'suspended').length} server(s).
+                                                    </p>
+                                                </div>
+                                                <DialogFooter>
+                                                    <Button
+                                                        variant="outline"
+                                                        onClick={() => setShowUnsuspendDialog(false)}
+                                                        className="rounded-xl border-brand-cream/10 text-brand-cream hover:bg-brand-cream/10"
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                    <Button
+                                                        onClick={handleUnsuspendServers}
+                                                        className="rounded-xl bg-green-500 text-white hover:bg-green-600"
+                                                    >
+                                                        Unsuspend Servers
+                                                    </Button>
+                                                </DialogFooter>
+                                            </DialogContent>
+                                        </Dialog>
+                                    </div>
+
+                                    {/* Delete Account */}
+                                    <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                                        <DialogTrigger asChild>
+                                            <Button
+                                                className="w-full justify-start gap-2 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20"
+                                                variant="ghost"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                                Delete Account
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="bg-[#1a1714] border-brand-cream/10">
+                                            <DialogHeader>
+                                                <DialogTitle className="flex items-center gap-2 text-brand-cream">
+                                                    <AlertTriangle className="h-5 w-5 text-red-400" />
+                                                    Delete User Account
+                                                </DialogTitle>
+                                                <DialogDescription className="text-brand-cream/70">
+                                                    Are you sure you want to delete <span className="font-semibold text-brand-cream">{user.name}'s</span> account? This action cannot be undone.
+                                                </DialogDescription>
+                                            </DialogHeader>
+                                            <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 my-4">
+                                                <p className="text-sm text-red-400">
+                                                    <strong>Warning:</strong> All user data will be permanently deleted. Make sure all subscriptions are cancelled first.
+                                                </p>
+                                            </div>
+                                            <DialogFooter>
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={() => setShowDeleteDialog(false)}
+                                                    className="rounded-xl border-brand-cream/10 text-brand-cream hover:bg-brand-cream/10"
+                                                >
+                                                    Cancel
+                                                </Button>
+                                                <Button
+                                                    onClick={handleDeleteAccount}
+                                                    className="rounded-xl bg-red-500 text-white hover:bg-red-600"
+                                                >
+                                                    Delete Account
+                                                </Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Right Column - Servers, Subscriptions, Invoices */}
@@ -424,13 +790,24 @@ export default function AdminUserDetails({
                                                     )}
                                                 </div>
 
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 flex-wrap">
                                                     <Link
                                                         href={`/dashboard/servers/${server.id}`}
                                                         className="inline-flex items-center rounded-lg bg-brand/10 px-3 py-1.5 text-xs font-medium text-brand hover:bg-brand/20 transition-colors border border-brand/20"
                                                     >
                                                         View Server Details
                                                     </Link>
+                                                    {server.pterodactyl_identifier && (
+                                                        <a
+                                                            href={`${pterodactylUrl}/server/${server.pterodactyl_identifier}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-500/20 transition-colors border border-blue-500/20"
+                                                        >
+                                                            <ExternalLink className="h-3 w-3" />
+                                                            Open in Panel
+                                                        </a>
+                                                    )}
                                                     {server.subscription_id && (
                                                         <a
                                                             href={`https://dashboard.stripe.com/subscriptions/${server.subscription_id}`}
@@ -442,12 +819,92 @@ export default function AdminUserDetails({
                                                             View in Stripe
                                                         </a>
                                                     )}
+                                                    {server.subscription_id && server.status !== 'cancelled' && (
+                                                        <Button
+                                                            onClick={() => {
+                                                                setCancelServerId(server.id);
+                                                                setShowCancelDialog(true);
+                                                            }}
+                                                            className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/20 transition-colors border border-red-500/20"
+                                                            variant="ghost"
+                                                        >
+                                                            <XCircle className="h-3 w-3" />
+                                                            Cancel Service
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
                                 )}
                             </div>
+
+                            {/* Cancel Service Dialog */}
+                            <Dialog open={showCancelDialog} onOpenChange={(open) => {
+                                setShowCancelDialog(open);
+                                if (!open) {
+                                    setCancelServerId(null);
+                                    setCancelType('period_end');
+                                }
+                            }}>
+                                <DialogContent className="bg-[#1a1714] border-brand-cream/10">
+                                    <DialogHeader>
+                                        <DialogTitle className="flex items-center gap-2 text-brand-cream">
+                                            <XCircle className="h-5 w-5 text-red-400" />
+                                            Cancel Service
+                                        </DialogTitle>
+                                        <DialogDescription className="text-brand-cream/70">
+                                            Choose when to cancel this service for <span className="font-semibold text-brand-cream">{user.name}</span>.
+                                        </DialogDescription>
+                                    </DialogHeader>
+
+                                    <div className="py-4">
+                                        <RadioGroup value={cancelType} onValueChange={(value: 'immediate' | 'period_end') => setCancelType(value)}>
+                                            <div className="space-y-3">
+                                                <div className="flex items-start space-x-3 rounded-lg border border-brand-cream/10 bg-brand-cream/5 p-4 cursor-pointer hover:bg-brand-cream/10 transition-colors">
+                                                    <RadioGroupItem value="period_end" id="period_end" className="mt-0.5" />
+                                                    <Label htmlFor="period_end" className="flex-1 cursor-pointer">
+                                                        <div className="font-medium text-brand-cream mb-1">Cancel at End of Billing Period</div>
+                                                        <div className="text-xs text-brand-cream/60">
+                                                            Service will remain active until the current billing period ends. The subscription will be cancelled and the server will be suspended automatically at that time.
+                                                        </div>
+                                                    </Label>
+                                                </div>
+
+                                                <div className="flex items-start space-x-3 rounded-lg border border-red-500/20 bg-red-500/5 p-4 cursor-pointer hover:bg-red-500/10 transition-colors">
+                                                    <RadioGroupItem value="immediate" id="immediate" className="mt-0.5" />
+                                                    <Label htmlFor="immediate" className="flex-1 cursor-pointer">
+                                                        <div className="font-medium text-brand-cream mb-1">Cancel Immediately</div>
+                                                        <div className="text-xs text-brand-cream/60">
+                                                            The subscription will be cancelled and the server will be suspended right now. The user will lose access immediately.
+                                                        </div>
+                                                    </Label>
+                                                </div>
+                                            </div>
+                                        </RadioGroup>
+                                    </div>
+
+                                    <DialogFooter>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => {
+                                                setShowCancelDialog(false);
+                                                setCancelServerId(null);
+                                                setCancelType('period_end');
+                                            }}
+                                            className="rounded-xl border-brand-cream/10 text-brand-cream hover:bg-brand-cream/10"
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            onClick={handleCancelService}
+                                            className="rounded-xl bg-red-500 text-white hover:bg-red-600"
+                                        >
+                                            Confirm Cancellation
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
 
                             {/* Invoices */}
                             <div className="rounded-2xl border border-brand-cream/10 bg-brand-cream/5 p-5">

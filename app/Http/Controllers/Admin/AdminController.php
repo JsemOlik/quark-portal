@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Server;
 use App\Models\AdminEmail as AdminEmailModel;
 use App\Mail\AdminEmail;
+use App\Services\PterodactylService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -111,6 +112,7 @@ class AdminController extends Controller
                         ? $subscriptionPeriods[$server->subscription_id]
                         : null,
                     'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                    'pterodactyl_identifier' => $server->pterodactyl_identifier,
                     'created_at' => $server->created_at->format('Y-m-d'),
                 ];
             });
@@ -198,6 +200,7 @@ class AdminController extends Controller
             'subscriptions' => $subscriptions,
             'invoices' => $invoices,
             'previousEmails' => $previousEmails,
+            'pterodactylUrl' => rtrim(config('services.pterodactyl.url'), '/'),
             'csrf' => csrf_token(),
         ]);
     }
@@ -287,5 +290,284 @@ class AdminController extends Controller
         ]);
 
         return back()->with('success', 'User role updated successfully.');
+    }
+
+    public function sendPasswordReset(User $user)
+    {
+        // Generate password reset token
+        $token = app('auth.password.broker')->createToken($user);
+
+        // Send password reset email
+        $user->sendPasswordResetNotification($token);
+
+        Log::info('Admin triggered password reset', [
+            'admin_id' => auth()->id(),
+            'user_id' => $user->id,
+        ]);
+
+        return back()->with('success', 'Password reset email sent successfully.');
+    }
+
+    public function updateEmail(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
+        ]);
+
+        // Prevent admins from changing their own email through this interface
+        if ($user->id === auth()->id()) {
+            return back()->withErrors(['email' => 'You cannot change your own email through this interface.']);
+        }
+
+        $oldEmail = $user->email;
+        $user->email = $validated['email'];
+        $user->email_verified_at = null; // Require email verification for new email
+        $user->save();
+
+        Log::info('Admin updated user email', [
+            'admin_id' => auth()->id(),
+            'user_id' => $user->id,
+            'old_email' => $oldEmail,
+            'new_email' => $validated['email'],
+        ]);
+
+        return back()->with('success', 'Email updated successfully. User will need to verify their new email.');
+    }
+
+    public function updatePassword(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'password' => ['required', 'string', 'min:8'],
+        ]);
+
+        // Prevent admins from changing their own password through this interface
+        if ($user->id === auth()->id()) {
+            return back()->withErrors(['password' => 'You cannot change your own password through this interface.']);
+        }
+
+        $user->password = bcrypt($validated['password']);
+        $user->save();
+
+        Log::info('Admin updated user password', [
+            'admin_id' => auth()->id(),
+            'user_id' => $user->id,
+        ]);
+
+        return back()->with('success', 'Password updated successfully.');
+    }
+
+    public function suspendServers(User $user)
+    {
+        // Get all active servers for this user
+        $activeServers = $user->servers()->where('status', 'active')->get();
+
+        if ($activeServers->isEmpty()) {
+            return back()->withErrors(['suspend' => 'No active servers found to suspend.']);
+        }
+
+        $pterodactylService = app(PterodactylService::class);
+        $suspendedCount = 0;
+        $errors = [];
+
+        foreach ($activeServers as $server) {
+            try {
+                // Suspend in Pterodactyl if the server has a pterodactyl_server_id
+                if ($server->pterodactyl_server_id) {
+                    $pterodactylService->suspendServer((int) $server->pterodactyl_server_id);
+                    Log::info('Suspended server in Pterodactyl', [
+                        'server_id' => $server->id,
+                        'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                    ]);
+                }
+
+                // Update status in our database
+                $server->status = 'suspended';
+                $server->save();
+                $suspendedCount++;
+            } catch (\Throwable $e) {
+                Log::error('Failed to suspend server', [
+                    'server_id' => $server->id,
+                    'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                    'error' => $e->getMessage(),
+                ]);
+                $errors[] = "Failed to suspend server {$server->server_name}: {$e->getMessage()}";
+            }
+        }
+
+        Log::info('Admin suspended user servers', [
+            'admin_id' => auth()->id(),
+            'user_id' => $user->id,
+            'servers_suspended' => $suspendedCount,
+            'errors' => count($errors),
+        ]);
+
+        if (!empty($errors)) {
+            return back()->with('success', "Suspended {$suspendedCount} server(s), but encountered errors with some: " . implode(', ', $errors));
+        }
+
+        return back()->with('success', "Successfully suspended {$suspendedCount} server(s) for {$user->name}.");
+    }
+
+    public function unsuspendServers(User $user)
+    {
+        // Get all suspended servers for this user
+        $suspendedServers = $user->servers()->where('status', 'suspended')->get();
+
+        if ($suspendedServers->isEmpty()) {
+            return back()->withErrors(['unsuspend' => 'No suspended servers found to unsuspend.']);
+        }
+
+        $pterodactylService = app(PterodactylService::class);
+        $unsuspendedCount = 0;
+        $errors = [];
+
+        foreach ($suspendedServers as $server) {
+            try {
+                // Unsuspend in Pterodactyl if the server has a pterodactyl_server_id
+                if ($server->pterodactyl_server_id) {
+                    $pterodactylService->unsuspendServer((int) $server->pterodactyl_server_id);
+                    Log::info('Unsuspended server in Pterodactyl', [
+                        'server_id' => $server->id,
+                        'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                    ]);
+                }
+
+                // Update status in our database
+                $server->status = 'active';
+                $server->save();
+                $unsuspendedCount++;
+            } catch (\Throwable $e) {
+                Log::error('Failed to unsuspend server', [
+                    'server_id' => $server->id,
+                    'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                    'error' => $e->getMessage(),
+                ]);
+                $errors[] = "Failed to unsuspend server {$server->server_name}: {$e->getMessage()}";
+            }
+        }
+
+        Log::info('Admin unsuspended user servers', [
+            'admin_id' => auth()->id(),
+            'user_id' => $user->id,
+            'servers_unsuspended' => $unsuspendedCount,
+            'errors' => count($errors),
+        ]);
+
+        if (!empty($errors)) {
+            return back()->with('success', "Unsuspended {$unsuspendedCount} server(s), but encountered errors with some: " . implode(', ', $errors));
+        }
+
+        return back()->with('success', "Successfully unsuspended {$unsuspendedCount} server(s) for {$user->name}.");
+    }
+
+    public function cancelService(Request $request, User $user, Server $server)
+    {
+        $validated = $request->validate([
+            'cancel_type' => ['required', 'in:immediate,period_end'],
+        ]);
+
+        // Verify the server belongs to the user
+        if ($server->user_id !== $user->id) {
+            return back()->withErrors(['cancel' => 'Server does not belong to this user.']);
+        }
+
+        // Check if server already cancelled
+        if ($server->status === 'cancelled') {
+            return back()->withErrors(['cancel' => 'Server is already cancelled.']);
+        }
+
+        // Check if server has a subscription
+        if (!$server->subscription_id) {
+            return back()->withErrors(['cancel' => 'Server does not have an active subscription.']);
+        }
+
+        try {
+            $stripe = new StripeClient(config('cashier.secret'));
+            $pterodactylService = app(PterodactylService::class);
+
+            if ($validated['cancel_type'] === 'immediate') {
+                // Cancel subscription immediately
+                $stripe->subscriptions->cancel($server->subscription_id);
+
+                // Suspend server in Pterodactyl
+                if ($server->pterodactyl_server_id) {
+                    $pterodactylService->suspendServer((int) $server->pterodactyl_server_id);
+                    Log::info('Suspended server in Pterodactyl (immediate cancellation)', [
+                        'server_id' => $server->id,
+                        'pterodactyl_server_id' => $server->pterodactyl_server_id,
+                    ]);
+                }
+
+                // Update server status
+                $server->status = 'cancelled';
+                $server->save();
+
+                Log::info('Admin cancelled service immediately', [
+                    'admin_id' => auth()->id(),
+                    'user_id' => $user->id,
+                    'server_id' => $server->id,
+                    'subscription_id' => $server->subscription_id,
+                ]);
+
+                return back()->with('success', "Service cancelled immediately. Server {$server->server_name} has been suspended.");
+            } else {
+                // Cancel at period end
+                $stripe->subscriptions->update($server->subscription_id, [
+                    'cancel_at_period_end' => true,
+                ]);
+
+                // Update server status to cancelled (webhook will handle suspension at period end)
+                $server->status = 'cancelled';
+                $server->save();
+
+                Log::info('Admin cancelled service at period end', [
+                    'admin_id' => auth()->id(),
+                    'user_id' => $user->id,
+                    'server_id' => $server->id,
+                    'subscription_id' => $server->subscription_id,
+                ]);
+
+                return back()->with('success', "Service will be cancelled at the end of the billing period. Server {$server->server_name} will be suspended automatically at that time.");
+            }
+        } catch (\Throwable $e) {
+            Log::error('Admin failed to cancel service', [
+                'admin_id' => auth()->id(),
+                'user_id' => $user->id,
+                'server_id' => $server->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return back()->withErrors(['cancel' => 'Failed to cancel service: ' . $e->getMessage()]);
+        }
+    }
+
+    public function deleteAccount(User $user)
+    {
+        // Prevent admins from deleting their own account
+        if ($user->id === auth()->id()) {
+            return back()->withErrors(['delete' => 'You cannot delete your own account.']);
+        }
+
+        // Check if user has active servers/subscriptions
+        $activeServers = $user->servers()->whereIn('status', ['active', 'suspended'])->count();
+        if ($activeServers > 0) {
+            return back()->withErrors(['delete' => 'User has active servers. Please cancel all subscriptions first.']);
+        }
+
+        $userName = $user->name;
+        $userEmail = $user->email;
+
+        Log::warning('Admin deleted user account', [
+            'admin_id' => auth()->id(),
+            'deleted_user_id' => $user->id,
+            'deleted_user_name' => $userName,
+            'deleted_user_email' => $userEmail,
+        ]);
+
+        // Delete the user (cascade will handle related records)
+        $user->delete();
+
+        return redirect()->route('admin.index')->with('success', "User account for {$userName} has been deleted.");
     }
 }
