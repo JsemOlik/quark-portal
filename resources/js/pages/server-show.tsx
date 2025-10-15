@@ -176,7 +176,7 @@ export default function ServerShow({
                                             rel="noopener noreferrer"
                                         >
                                             <Button
-                                                className="cursor-pointer bg-brand-cream/10 text-brand-cream hover:bg-white/20 border border-white/20"
+                                                className="cursor-pointer bg-brand-cream/10 text-brand-cream hover:bg-brand-cream/20 border border-brand-cream/20"
                                             >
                                                 <ExternalLink className="size-4" />
                                                 Open Panel

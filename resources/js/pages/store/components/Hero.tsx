@@ -33,7 +33,7 @@ export default function Hero() {
                 <use href="#grid-pass" opacity="0.10" />
             </g>
         </svg>
-        <section className="relative mx-auto w-full max-w-7xl px-4 pt-6 ">
+        <section className="relative mx-auto w-full max-w-7xl px-4 pt-6 mt-8 ">
 
             <GradientBackdrop />
             <div className="relative z-10 text-brand-cream">
@@ -42,10 +42,7 @@ export default function Hero() {
                     <span className="block text-brand">Game server</span>
                 </h1>
                 <p className="mt-4 max-w-2xl text-white/80">
-                    Create, survive, and automate—from vanilla survival to massive
-                    modpacks, minigames, and redstone engineering. Get your server
-                    running in minutes with reliable hosting and straightforward
-                    management.
+                    Build, compete, and customize—whether it’s vanilla gameplay, heavy modding, co‑op survival, or fast‑paced competitive servers. Launch your game server in minutes with reliable hosting, low-latency performance, and straightforward management.
                 </p>
                 <Link href="#pricing">
                     <Button
@@ -57,7 +54,7 @@ export default function Hero() {
                 </Link>
                 <a href="https://discord.gg/pzd23NUj8c" target="_blank" rel="noreferrer">  <Button
                     size="lg"
-                    className="cursor-pointer align-middle bg-[#5865F2] hover:bg-[#5865F2]/80 text-md text-white mr-4 mt-8"
+                    className="cursor-pointer align-middle bg-[#5865F2] hover:bg-[#5865F2]/80 text-md text-white mr-4 mt-8 border border-[#5865F2]/80"
                 >
                     <img
                         src="/discordwhite.svg"

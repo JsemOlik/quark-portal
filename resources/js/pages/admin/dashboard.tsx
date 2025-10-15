@@ -1,7 +1,8 @@
 import React from 'react';
 import { Head, Link } from '@inertiajs/react';
 import Navbar from '@/components/navbar';
-import { Users, Server, Activity, XCircle } from 'lucide-react';
+import { Users, Server, Activity, XCircle, ExternalLink } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 type User = {
     id: number;
@@ -52,12 +53,23 @@ export default function AdminDashboard({
                                 Manage users and servers
                             </p>
                         </div>
-                        <Link
-                            href="/admin/servers"
-                            className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-brown hover:bg-brand/80 transition-colors"
-                        >
-                            View All Servers
+                        <div>
+                        <Link href="/admin/servers">
+                            <Button size='md' className='text-brand-brown bg-brand text-sm hover:bg-brand/80 transition-colors p-5'>
+                                View All Servers
+                            </Button>
                         </Link>
+                            <a
+                                href="https://panel.jsemolik.dev/admin"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                <Button size='md' className='cursor-pointer bg-brand-cream/10 text-brand-cream hover:bg-brand-cream/20 border border-brand-cream/20 transition-colors ml-3 p-5'>
+                                    <ExternalLink className="h-4 w-4" />
+                                    Open Panel
+                                </Button>
+                            </a>
+                        </div>
                     </div>
 
                     {/* Stats Cards */}

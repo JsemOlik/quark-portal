@@ -1,13 +1,28 @@
-// store/index.tsx (or your StoreV2 page)
 import React from 'react';
 import { Head, usePage } from '@inertiajs/react';
 import Navbar from '@/components/navbar';
-import { Hero, Specs, ReviewRail, GamesRail, PricingSection, FAQSection } from './components';
+import {
+  Hero,
+  Specs,
+  ReviewRail,
+  GamesRail,
+  PricingSection,
+  FAQSection,
+} from './components';
 import { IntervalKey, PlanCardData } from './types';
+import Footer from '@/components/footer';
+
+type PageProps = {
+  plans: PlanCardData[];
+  currency: string;
+  name?: string;
+};
 
 export default function StoreV2() {
-  const { props } = usePage<{ plans: PlanCardData[]; currency: string }>();
+  const { props } = usePage<PageProps>();
   const [bill, setBill] = React.useState<IntervalKey>('annual');
+
+  const appName = props.name ?? 'Hosting Company';
 
   return (
     <>
@@ -28,10 +43,11 @@ export default function StoreV2() {
 
         <section className="relative mx-auto w-full pb-14 border-t border-brand-cream/05 pt-14 mb-6">
           <h2 className="mb-2 text-2xl font-semibold text-brand-cream text-center">
-            Host all your favorite games with Quark
+            Host all your favorite games with {appName}
           </h2>
           <p className="mb-14 text-brand-cream/80 text-center">
-            Our list isn't exhaustive; if your game isn't listed, just ask, and we'll likely host it!
+            Our list isn't exhaustive; if your game isn't listed, just ask, and
+            we'll likely host it!
           </p>
           <GamesRail />
         </section>
@@ -43,7 +59,8 @@ export default function StoreV2() {
             Loved by gamers worldwide
           </h2>
           <p className="mb-4 text-brand-cream/80 text-center">
-            Join thousands of satisfied customers who trust our game server hosting needs. See what our community has to say.
+            Join thousands of satisfied customers who trust our game server
+            hosting needs. See what our community has to say.
           </p>
           <ReviewRail />
         </section>
@@ -66,13 +83,24 @@ export default function StoreV2() {
           <footer className="mx-auto w-full max-w-7xl px-4 pb-10 text-xs text-brand-cream/50">
             <h1 className="text-lg font-semibold">Footnotes</h1>
             <ol className="list-decimal pl-5">
-              <li>Nodes feature 1 Gbps uplinks to the Internet, delivering "light-speed" throughput.</li>
-              <li>Regional ping averages are ≈ 30 ms to our datacenters, ensuring "ultra-low" latency.</li>
-              <li>Storage capacity is limited at 20 GB, delivering "unlimited" storage.</li>
+              <li>
+                Nodes feature 1 Gbps uplinks to the Internet, delivering
+                "light-speed" throughput.
+              </li>
+              <li>
+                Regional ping averages are ≈ 30 ms to our datacenters, ensuring
+                "ultra-low" latency.
+              </li>
+              <li>
+                Storage capacity is limited at 20 GB, delivering "unlimited"
+                storage.
+              </li>
             </ol>
           </footer>
         </section>
       </div>
+
+      <Footer />
     </>
   );
 }

@@ -13,6 +13,10 @@ Route::get('/about-us', function () {
     // return Inertia::render('about-us');
 })->name('about-us');
 
+Route::get('/status', function () {
+    return Inertia::render('status');
+})->name('status');
+
 require __DIR__ . '/store.php';
 require __DIR__ . '/dashboard.php';
 require __DIR__ . '/checkout.php';

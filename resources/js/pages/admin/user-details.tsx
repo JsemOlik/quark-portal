@@ -333,13 +333,13 @@ export default function AdminUserDetails({
                                 </h2>
                                 <div className="space-y-3">
                                     <div className="flex justify-between items-center py-2 border-b border-brand-cream/5">
-                                        <span className="text-sm text-brand-cream/60">Total Servers</span>
+                                        <span className="text-sm text-brand-cream/60">Total Services</span>
                                         <span className="text-sm font-medium text-brand-cream">
                                             {servers.length}
                                         </span>
                                     </div>
                                     <div className="flex justify-between items-center py-2 border-b border-brand-cream/5">
-                                        <span className="text-sm text-brand-cream/60">Active Servers</span>
+                                        <span className="text-sm text-brand-cream/60">Active Services</span>
                                         <span className="text-sm font-medium text-green-400">
                                             {servers.filter((s) => s.status === 'active').length}
                                         </span>
@@ -361,7 +361,7 @@ export default function AdminUserDetails({
                                 <div className="mb-4 flex items-center gap-2">
                                     <ServerIcon className="h-5 w-5 text-brand" />
                                     <h2 className="text-lg font-semibold text-brand-cream">
-                                        Servers ({servers.length})
+                                        Services ({servers.length})
                                     </h2>
                                 </div>
 

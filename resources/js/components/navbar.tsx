@@ -51,7 +51,7 @@ export default function Navbar() {
           {/* Left: Logo */}
           <Link href="/" className="flex items-center gap-2 rounded-lg px-2 py-1">
             <AppLogoIcon className="h-5 w-5 text-brand" />
-            <span className="font-yaro tracking-tight">quark</span>
+            <span className="font-yaro tracking-tight">Sigma Hosting lol</span>
           </Link>
 
           {/* Center: Links */}
