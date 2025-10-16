@@ -81,6 +81,24 @@ type StaffMember = {
     name: string;
 };
 
+type AccessRequest = {
+    id: number;
+    requester_id: number;
+    requester_name: string;
+    created_at: string;
+};
+
+type AccessRequestStatus = {
+    status: 'pending' | 'approved' | 'denied';
+    response_message: string | null;
+    responded_at: string | null;
+};
+
+type GrantedAccessUser = {
+    id: number;
+    name: string;
+};
+
 export default function AdminTicketDetail({
     ticket,
     messages = [],
@@ -88,6 +106,9 @@ export default function AdminTicketDetail({
     server,
     staffMembers = [],
     permissions = [],
+    accessRequests = [],
+    accessRequestStatus = null,
+    grantedAccessUsers = [],
     csrf,
 }: {
     ticket: TicketData;
@@ -96,6 +117,9 @@ export default function AdminTicketDetail({
     server?: ServerInfo;
     staffMembers: StaffMember[];
     permissions: string[];
+    accessRequests: AccessRequest[];
+    accessRequestStatus: AccessRequestStatus | null;
+    grantedAccessUsers: GrantedAccessUser[];
     csrf: string;
 }) {
     const hasPermission = (permission: string) => {
@@ -230,6 +254,58 @@ export default function AdminTicketDetail({
             },
             onError: () => toast.error('Failed to delete ticket'),
         });
+    };
+
+    const handleRequestAccess = () => {
+        router.post(
+            `/admin/tickets/${ticket.id}/request-access`,
+            { _token: csrf },
+            {
+                onSuccess: () => toast.success('Access request sent'),
+                onError: (errors) => {
+                    const errorMessage = errors?.access || 'Failed to request access';
+                    toast.error(errorMessage);
+                },
+            }
+        );
+    };
+
+    const handleApproveRequest = (requestId: number) => {
+        router.post(
+            `/admin/tickets/access-requests/${requestId}/approve`,
+            { _token: csrf },
+            {
+                onSuccess: () => toast.success('Access request approved'),
+                onError: () => toast.error('Failed to approve request'),
+            }
+        );
+    };
+
+    const handleDenyRequest = (requestId: number) => {
+        const message = prompt('Optional: Enter a reason for denying this request');
+        router.post(
+            `/admin/tickets/access-requests/${requestId}/deny`,
+            { _token: csrf, message },
+            {
+                onSuccess: () => toast.success('Access request denied'),
+                onError: () => toast.error('Failed to deny request'),
+            }
+        );
+    };
+
+    const handleRevokeAccess = (userId: number, userName: string) => {
+        if (!confirm(`Are you sure you want to revoke access for ${userName}?`)) {
+            return;
+        }
+
+        router.post(
+            `/admin/tickets/${ticket.id}/revoke-access`,
+            { _token: csrf, user_id: userId },
+            {
+                onSuccess: () => toast.success('Access revoked'),
+                onError: () => toast.error('Failed to revoke access'),
+            }
+        );
     };
 
     return (
@@ -447,6 +523,63 @@ export default function AdminTicketDetail({
 
                         {/* Sidebar - Right Side */}
                         <div className="space-y-6">
+                            {/* Request Access Card - For non-assignee staff */}
+                            {!ticket.can_manage && !hasPermission('*') && (
+                                <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-5">
+                                    <h3 className="text-sm font-semibold text-brand-cream mb-3 uppercase tracking-wide flex items-center gap-2">
+                                        <Shield className="h-4 w-4" />
+                                        Access Request
+                                    </h3>
+
+                                    {accessRequestStatus ? (
+                                        <div className="space-y-3">
+                                            {accessRequestStatus.status === 'pending' && (
+                                                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                                                    <p className="text-sm font-medium mb-1">⏳ Request Pending</p>
+                                                    <p className="text-xs">Your access request is awaiting approval from the assigned staff member or super admin.</p>
+                                                </div>
+                                            )}
+                                            {accessRequestStatus.status === 'denied' && (
+                                                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
+                                                    <p className="text-sm font-medium mb-1">❌ Request Denied</p>
+                                                    {accessRequestStatus.response_message && (
+                                                        <p className="text-xs mt-2">Reason: {accessRequestStatus.response_message}</p>
+                                                    )}
+                                                    {accessRequestStatus.responded_at && (
+                                                        <p className="text-xs mt-1 opacity-70">Responded: {accessRequestStatus.responded_at}</p>
+                                                    )}
+                                                    <Button
+                                                        onClick={handleRequestAccess}
+                                                        className="w-full mt-3 bg-brand text-brand-brown hover:bg-brand/90 text-sm"
+                                                    >
+                                                        Request Again
+                                                    </Button>
+                                                </div>
+                                            )}
+                                            {accessRequestStatus.status === 'approved' && (
+                                                <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400">
+                                                    <p className="text-sm font-medium mb-1">✅ Access Granted</p>
+                                                    <p className="text-xs">You now have access to manage this ticket.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            <p className="text-sm text-brand-cream/70">
+                                                This ticket is assigned to {ticket.assigned_to_name || 'another staff member'}. Request access to manage it.
+                                            </p>
+                                            <Button
+                                                onClick={handleRequestAccess}
+                                                className="w-full bg-brand text-brand-brown hover:bg-brand/90"
+                                            >
+                                                <Shield className="h-4 w-4 mr-2" />
+                                                Request Access
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Ticket Actions */}
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
                                 <h3 className="text-sm font-semibold text-brand-cream mb-4 uppercase tracking-wide">
@@ -515,6 +648,63 @@ export default function AdminTicketDetail({
                                     )}
                                 </div>
                             </div>
+
+                            {/* Pending Access Requests - For assignee or super admin */}
+                            {accessRequests.length > 0 && (
+                                <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5">
+                                    <h3 className="text-sm font-semibold text-brand-cream mb-4 uppercase tracking-wide flex items-center gap-2">
+                                        <AlertCircle className="h-4 w-4" />
+                                        Pending Access Requests ({accessRequests.length})
+                                    </h3>
+                                    <div className="space-y-3">
+                                        {accessRequests.map((request) => (
+                                            <div key={request.id} className="p-3 rounded-lg bg-white/5 border border-white/10">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-sm font-medium text-brand-cream">{request.requester_name}</span>
+                                                    <span className="text-xs text-brand-cream/60">{request.created_at}</span>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        onClick={() => handleApproveRequest(request.id)}
+                                                        className="flex-1 bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 text-sm py-1.5"
+                                                    >
+                                                        Approve
+                                                    </Button>
+                                                    <Button
+                                                        onClick={() => handleDenyRequest(request.id)}
+                                                        className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-sm py-1.5"
+                                                    >
+                                                        Deny
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Granted Access Users - For assignee or super admin */}
+                            {grantedAccessUsers.length > 0 && (
+                                <div className="rounded-2xl border border-green-500/20 bg-green-500/5 p-5">
+                                    <h3 className="text-sm font-semibold text-brand-cream mb-4 uppercase tracking-wide flex items-center gap-2">
+                                        <UserCog className="h-4 w-4" />
+                                        Granted Access ({grantedAccessUsers.length})
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {grantedAccessUsers.map((grantedUser) => (
+                                            <div key={grantedUser.id} className="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/10">
+                                                <span className="text-sm text-brand-cream">{grantedUser.name}</span>
+                                                <Button
+                                                    onClick={() => handleRevokeAccess(grantedUser.id, grantedUser.name)}
+                                                    className="bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-xs py-1 px-2"
+                                                >
+                                                    Revoke
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* User Information */}
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">

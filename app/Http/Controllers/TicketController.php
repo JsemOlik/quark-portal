@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Ticket;
 use App\Models\Server;
 use App\Models\TicketMessage;
+use App\Models\TicketAccessRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -560,6 +561,52 @@ class TicketController extends Controller
             $permissions = $user->role->permissions->pluck('name')->toArray();
         }
 
+        // Get pending access requests (only for assignee or super admin)
+        $canSeeRequests = $user->isSuperAdmin() || $ticket->assigned_to === $user->id;
+        $accessRequests = [];
+        if ($canSeeRequests) {
+            $accessRequests = TicketAccessRequest::where('ticket_id', $ticket->id)
+                ->where('status', 'pending')
+                ->with('requester:id,name')
+                ->get()
+                ->map(function ($req) {
+                    return [
+                        'id' => $req->id,
+                        'requester_id' => $req->requester_id,
+                        'requester_name' => $req->requester->name,
+                        'created_at' => $req->created_at->format('Y-m-d H:i'),
+                    ];
+                });
+        }
+
+        // Check if current user has a pending request
+        $userAccessRequest = TicketAccessRequest::where('ticket_id', $ticket->id)
+            ->where('requester_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->first();
+
+        $accessRequestStatus = null;
+        if ($userAccessRequest) {
+            $accessRequestStatus = [
+                'status' => $userAccessRequest->status,
+                'response_message' => $userAccessRequest->response_message,
+                'responded_at' => $userAccessRequest->responded_at ? $userAccessRequest->responded_at->format('Y-m-d H:i') : null,
+            ];
+        }
+
+        // Get users who have granted access
+        $grantedAccessUsers = [];
+        if ($ticket->additional_access) {
+            $grantedAccessUsers = User::whereIn('id', $ticket->additional_access)
+                ->get(['id', 'name'])
+                ->map(function ($u) {
+                    return [
+                        'id' => $u->id,
+                        'name' => $u->name,
+                    ];
+                });
+        }
+
         return Inertia::render('admin/ticket-detail', [
             'ticket' => [
                 'id' => $ticket->id,
@@ -581,6 +628,9 @@ class TicketController extends Controller
             'server' => $serverInfo,
             'staffMembers' => $staffMembers,
             'permissions' => $permissions,
+            'accessRequests' => $accessRequests,
+            'accessRequestStatus' => $accessRequestStatus,
+            'grantedAccessUsers' => $grantedAccessUsers,
             'csrf' => csrf_token(),
         ]);
     }
@@ -908,5 +958,130 @@ class TicketController extends Controller
         }
 
         return Storage::disk('private')->download($message->attachment_path, $message->attachment_name);
+    }
+
+    /**
+     * Admin: Request access to a ticket
+     */
+    public function requestAccess(Request $request, Ticket $ticket)
+    {
+        $user = Auth::user();
+
+        // Super admins don't need to request access
+        if ($user->isSuperAdmin()) {
+            return back()->withErrors(['access' => 'Super admins have access to all tickets.']);
+        }
+
+        // Check if user can already manage the ticket
+        if ($ticket->canManage($user)) {
+            return back()->withErrors(['access' => 'You already have access to this ticket.']);
+        }
+
+        // Check if there's already a pending request
+        $existingRequest = TicketAccessRequest::where('ticket_id', $ticket->id)
+            ->where('requester_id', $user->id)
+            ->where('status', 'pending')
+            ->first();
+
+        if ($existingRequest) {
+            return back()->withErrors(['access' => 'You already have a pending access request for this ticket.']);
+        }
+
+        // Create the access request
+        TicketAccessRequest::create([
+            'ticket_id' => $ticket->id,
+            'requester_id' => $user->id,
+            'status' => 'pending',
+        ]);
+
+        Log::info('Admin requested ticket access', [
+            'admin_id' => $user->id,
+            'ticket_id' => $ticket->id,
+        ]);
+
+        return back()->with('success', 'Access request sent. The assigned staff member will be notified.');
+    }
+
+    /**
+     * Admin: Approve access request
+     */
+    public function approveAccessRequest(Request $request, TicketAccessRequest $accessRequest)
+    {
+        $user = Auth::user();
+        $ticket = $accessRequest->ticket;
+
+        // Only assignee or super admin can approve
+        $canApprove = $user->isSuperAdmin() || $ticket->assigned_to === $user->id;
+
+        abort_unless($canApprove, 403, 'Only the assigned staff member or super admin can approve access requests.');
+
+        if ($accessRequest->status !== 'pending') {
+            return back()->withErrors(['access' => 'This request has already been processed.']);
+        }
+
+        $accessRequest->approve($user, $request->input('message'));
+
+        Log::info('Admin approved ticket access request', [
+            'approver_id' => $user->id,
+            'requester_id' => $accessRequest->requester_id,
+            'ticket_id' => $ticket->id,
+        ]);
+
+        return back()->with('success', 'Access request approved. ' . $accessRequest->requester->name . ' can now manage this ticket.');
+    }
+
+    /**
+     * Admin: Deny access request
+     */
+    public function denyAccessRequest(Request $request, TicketAccessRequest $accessRequest)
+    {
+        $user = Auth::user();
+        $ticket = $accessRequest->ticket;
+
+        // Only assignee or super admin can deny
+        $canDeny = $user->isSuperAdmin() || $ticket->assigned_to === $user->id;
+
+        abort_unless($canDeny, 403, 'Only the assigned staff member or super admin can deny access requests.');
+
+        if ($accessRequest->status !== 'pending') {
+            return back()->withErrors(['access' => 'This request has already been processed.']);
+        }
+
+        $accessRequest->deny($user, $request->input('message'));
+
+        Log::info('Admin denied ticket access request', [
+            'denier_id' => $user->id,
+            'requester_id' => $accessRequest->requester_id,
+            'ticket_id' => $ticket->id,
+        ]);
+
+        return back()->with('success', 'Access request denied.');
+    }
+
+    /**
+     * Admin: Revoke access from a user
+     */
+    public function revokeAccess(Request $request, Ticket $ticket)
+    {
+        $user = Auth::user();
+
+        // Only assignee or super admin can revoke access
+        $canRevoke = $user->isSuperAdmin() || $ticket->assigned_to === $user->id;
+
+        abort_unless($canRevoke, 403, 'Only the assigned staff member or super admin can revoke access.');
+
+        $validated = $request->validate([
+            'user_id' => 'required|exists:users,id',
+        ]);
+
+        $ticket->revokeAccess($validated['user_id']);
+
+        Log::info('Admin revoked ticket access', [
+            'revoker_id' => $user->id,
+            'revoked_user_id' => $validated['user_id'],
+            'ticket_id' => $ticket->id,
+        ]);
+
+        return back()->with('success', 'Access revoked successfully.');
     }
 }

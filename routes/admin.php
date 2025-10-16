@@ -36,6 +36,12 @@ Route::middleware(['auth', 'verified', 'admin', 'throttle:60,1']) // 60 requests
             Route::post('/tickets/{ticket}/assign', [\App\Http\Controllers\TicketController::class, 'adminAssignTicket'])->middleware('permission:assign_tickets')->name('tickets.assign');
             Route::post('/tickets/{ticket}/priority', [\App\Http\Controllers\TicketController::class, 'adminSetPriority'])->middleware('permission:view_tickets')->name('tickets.priority');
             Route::delete('/tickets/{ticket}', [\App\Http\Controllers\TicketController::class, 'adminDelete'])->middleware('permission:delete_tickets')->name('tickets.delete');
+
+            // Access request routes
+            Route::post('/tickets/{ticket}/request-access', [\App\Http\Controllers\TicketController::class, 'requestAccess'])->middleware('permission:view_tickets')->name('tickets.requestAccess');
+            Route::post('/tickets/access-requests/{accessRequest}/approve', [\App\Http\Controllers\TicketController::class, 'approveAccessRequest'])->middleware('permission:view_tickets')->name('tickets.approveAccess');
+            Route::post('/tickets/access-requests/{accessRequest}/deny', [\App\Http\Controllers\TicketController::class, 'denyAccessRequest'])->middleware('permission:view_tickets')->name('tickets.denyAccess');
+            Route::post('/tickets/{ticket}/revoke-access', [\App\Http\Controllers\TicketController::class, 'revokeAccess'])->middleware('permission:view_tickets')->name('tickets.revokeAccess');
         });
 
         // Role management routes (Super Admin only) - No permission middleware needed as these check isSuperAdmin() in the controller
