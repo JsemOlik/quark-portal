@@ -44,7 +44,15 @@ class TicketController extends Controller
         }
 
         // Sort by priority (urgent first) and then by last_reply_at or created_at
-        $tickets = $query->orderByRaw("FIELD(priority, 'urgent', 'high', 'normal', 'low')")
+        $tickets = $query->orderByRaw("
+                CASE priority
+                    WHEN 'urgent' THEN 1
+                    WHEN 'high' THEN 2
+                    WHEN 'normal' THEN 3
+                    WHEN 'low' THEN 4
+                    ELSE 5
+                END
+            ")
             ->orderByDesc('last_reply_at')
             ->orderByDesc('created_at')
             ->get()
@@ -399,8 +407,16 @@ class TicketController extends Controller
         }
 
         // Sort by priority, then unassigned tickets first, then by last_reply_at
-        $tickets = $query->orderByRaw("FIELD(priority, 'urgent', 'high', 'normal', 'low')")
-            ->orderByRaw('assigned_to IS NULL DESC') // Unassigned tickets first
+        $tickets = $query->orderByRaw("
+                CASE priority
+                    WHEN 'urgent' THEN 1
+                    WHEN 'high' THEN 2
+                    WHEN 'normal' THEN 3
+                    WHEN 'low' THEN 4
+                    ELSE 5
+                END
+            ")
+            ->orderByRaw('CASE WHEN assigned_to IS NULL THEN 0 ELSE 1 END') // Unassigned tickets first
             ->orderByDesc('last_reply_at')
             ->orderByDesc('created_at')
             ->get()
@@ -451,6 +467,100 @@ class TicketController extends Controller
                 'assigned_to' => $request->assigned_to,
                 'search' => $request->search,
             ],
+            'permissions' => $permissions,
+            'csrf' => csrf_token(),
+        ]);
+    }
+
+    /**
+     * Admin: Show ticket detail with comprehensive information
+     */
+    public function adminShow(Ticket $ticket)
+    {
+        $user = Auth::user();
+
+        // Load all relationships
+        $ticket->load(['user', 'server', 'assignedTo', 'messages.user']);
+
+        // Get all messages
+        $messages = $ticket->messages()
+            ->with('user:id,name')
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->map(function ($message) {
+                return [
+                    'id' => $message->id,
+                    'message' => $message->message,
+                    'is_staff' => $message->is_staff,
+                    'user_name' => $message->user ? $message->user->name : 'Staff',
+                    'attachment_name' => $message->attachment_name,
+                    'attachment_path' => $message->attachment_path ? route('ticket.attachment', ['message' => $message->id]) : null,
+                    'created_at' => $message->created_at->format('Y-m-d H:i'),
+                ];
+            });
+
+        // Get user information with stats
+        $ticketUser = $ticket->user;
+        $userInfo = [
+            'id' => $ticketUser->id,
+            'name' => $ticketUser->name,
+            'email' => $ticketUser->email,
+            'created_at' => $ticketUser->created_at->format('Y-m-d'),
+            'servers_count' => $ticketUser->servers()->count(),
+            'open_tickets_count' => $ticketUser->tickets()->whereIn('status', ['open', 'resolved'])->count(),
+        ];
+
+        // Get server information if applicable
+        $serverInfo = null;
+        if ($ticket->server) {
+            $server = $ticket->server;
+            $serverInfo = [
+                'id' => $server->id,
+                'server_name' => $server->server_name,
+                'status' => $server->status,
+                'plan' => is_object($server->plan) ? ($server->plan->name ?? 'N/A') : ($server->plan ?? 'N/A'),
+                'created_at' => $server->created_at->format('Y-m-d'),
+            ];
+        }
+
+        // Get all staff members for assignment dropdown
+        $staffMembers = User::where('is_admin', true)
+            ->orWhereNotNull('role_id')
+            ->get(['id', 'name'])
+            ->map(function ($staff) {
+                return [
+                    'id' => $staff->id,
+                    'name' => $staff->name,
+                ];
+            });
+
+        // Get current admin's permissions
+        $permissions = [];
+        if ($user->isSuperAdmin()) {
+            $permissions = ['*'];
+        } elseif ($user->role) {
+            $permissions = $user->role->permissions->pluck('name')->toArray();
+        }
+
+        return Inertia::render('admin/ticket-detail', [
+            'ticket' => [
+                'id' => $ticket->id,
+                'title' => $ticket->title,
+                'department' => $ticket->department,
+                'status' => $ticket->status,
+                'priority' => $ticket->priority,
+                'server_id' => $ticket->server_id,
+                'user_id' => $ticket->user_id,
+                'assigned_to' => $ticket->assigned_to,
+                'assigned_to_name' => $ticket->assignedTo ? $ticket->assignedTo->name : null,
+                'created_at' => $ticket->created_at->format('Y-m-d H:i'),
+                'last_reply_at' => $ticket->last_reply_at ? $ticket->last_reply_at->format('Y-m-d H:i') : null,
+                'closed_at' => $ticket->closed_at ? $ticket->closed_at->format('Y-m-d H:i') : null,
+            ],
+            'messages' => $messages,
+            'user' => $userInfo,
+            'server' => $serverInfo,
+            'staffMembers' => $staffMembers,
             'permissions' => $permissions,
             'csrf' => csrf_token(),
         ]);

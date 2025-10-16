@@ -56,7 +56,7 @@ export default function AdminTickets({ tickets = [], csrf }: { tickets: Ticket[]
                                 {tickets.map((ticket) => (
                                     <Link
                                         key={ticket.id}
-                                        href={`/dashboard/tickets/${ticket.id}`}
+                                        href={`/admin/tickets/${ticket.id}`}
                                         className="block rounded-xl border border-white/10 bg-white/5 p-5 hover:bg-white/10 transition-colors"
                                     >
                                         <div className="flex items-start justify-between mb-3">

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Head, Link } from '@inertiajs/react';
 import Navbar from '@/components/navbar';
-import { Users, Server, Activity, XCircle, ExternalLink, Shield } from 'lucide-react';
+import { Users, Server, Activity, XCircle, ExternalLink, Shield, Ticket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 type User = {
@@ -69,6 +69,14 @@ export default function AdminDashboard({
                             <Link href="/admin/servers">
                                 <Button size='md' className='text-brand-brown bg-brand text-sm hover:bg-brand/80 transition-colors p-5'>
                                     View All Servers
+                                </Button>
+                            </Link>
+                        )}
+                        {hasPermission('view_tickets') && (
+                            <Link href="/admin/tickets">
+                                <Button size='md' className='bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/20 transition-colors p-5'>
+                                    <Ticket className="h-4 w-4 mr-2" />
+                                    Support Tickets
                                 </Button>
                             </Link>
                         )}

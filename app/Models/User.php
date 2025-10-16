@@ -62,6 +62,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Get the tickets for the user.
+     */
+    public function tickets()
+    {
+        return $this->hasMany(Ticket::class);
+    }
+
+    /**
      * Get the role for the user.
      */
     public function role()

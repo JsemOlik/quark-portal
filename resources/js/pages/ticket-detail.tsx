@@ -31,9 +31,12 @@ type TicketData = {
     title: string;
     department: string;
     status: string;
+    priority: string;
     server_name: string | null;
     created_at: string;
     user_id: number;
+    assigned_to: number | null;
+    assigned_to_name: string | null;
 };
 
 type Message = {
@@ -51,14 +54,19 @@ export default function TicketDetail({
     messages = [],
     isAdmin = false,
     isOwnTicket = true,
+    permissions = [],
     csrf,
 }: {
     ticket: TicketData;
     messages: Message[];
     isAdmin?: boolean;
     isOwnTicket?: boolean;
+    permissions?: string[];
     csrf: string;
 }) {
+    const hasPermission = (permission: string) => {
+        return permissions.includes('*') || permissions.includes(permission);
+    };
     const [replyMessage, setReplyMessage] = useState('');
     const [attachment, setAttachment] = useState<File | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -153,6 +161,21 @@ export default function TicketDetail({
                 return 'bg-gray-500/10 border-gray-500/20 text-gray-400';
             case 'resolved':
                 return 'bg-green-500/10 border-green-500/20 text-green-400';
+            default:
+                return 'bg-white/5 border-white/10 text-brand-cream/70';
+        }
+    };
+
+    const priorityClasses = (priority: string) => {
+        switch (priority) {
+            case 'urgent':
+                return 'bg-red-500/10 border-red-500/20 text-red-400';
+            case 'high':
+                return 'bg-orange-500/10 border-orange-500/20 text-orange-400';
+            case 'normal':
+                return 'bg-blue-500/10 border-blue-500/20 text-blue-400';
+            case 'low':
+                return 'bg-gray-500/10 border-gray-500/20 text-gray-400';
             default:
                 return 'bg-white/5 border-white/10 text-brand-cream/70';
         }
@@ -423,14 +446,32 @@ export default function TicketDetail({
                                     <span>Created {ticket.created_at}</span>
                                 </div>
                             </div>
-                            <span
-                                className={`rounded-full px-4 py-1.5 text-sm font-semibold capitalize border ${statusClasses(
-                                    ticket.status
-                                )}`}
-                            >
-                                {ticket.status}
-                            </span>
+                            <div className="flex flex-col gap-2 items-end">
+                                <span
+                                    className={`rounded-full px-4 py-1.5 text-sm font-semibold capitalize border ${statusClasses(
+                                        ticket.status
+                                    )}`}
+                                >
+                                    {ticket.status}
+                                </span>
+                                <span
+                                    className={`rounded-full px-4 py-1.5 text-sm font-semibold capitalize border ${priorityClasses(
+                                        ticket.priority
+                                    )}`}
+                                >
+                                    {ticket.priority} Priority
+                                </span>
+                            </div>
                         </div>
+                        {ticket.assigned_to_name && (
+                            <div className="pt-4 border-t border-white/10">
+                                <div className="flex items-center gap-2 text-sm">
+                                    <UserCog className="h-4 w-4 text-brand" />
+                                    <span className="text-brand-cream/70">Assigned to:</span>
+                                    <span className="text-brand-cream font-medium">{ticket.assigned_to_name}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Messages */}
