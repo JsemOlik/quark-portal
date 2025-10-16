@@ -69,6 +69,16 @@ export default function AdminDashboard({
                                     Open Panel
                                 </Button>
                             </a>
+                            <a
+                                href="https://metrics.jsemolik.dev"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                <Button size='md' className='cursor-pointer bg-brand-cream/10 text-brand-cream hover:bg-brand-cream/20 border border-brand-cream/20 transition-colors ml-3 p-5'>
+                                    <ExternalLink className="h-4 w-4" />
+                                    Open Metrics
+                                </Button>
+                            </a>
                         </div>
                     </div>
 

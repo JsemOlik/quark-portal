@@ -395,9 +395,20 @@ export default function AdminUserDetails({
                                             <div className="text-xs text-brand-cream/60 mb-1">
                                                 Stripe Customer ID
                                             </div>
-                                            <div className="text-sm text-brand-cream font-mono break-all">
+                                            <div className="text-sm text-brand-cream font-mono break-all mb-2">
                                                 {user.stripe_id || 'N/A'}
                                             </div>
+                                            {user.stripe_id && (
+                                                <a
+                                                    href={`https://dashboard.stripe.com/customers/${user.stripe_id}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1.5 rounded-lg bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-400 hover:bg-purple-500/20 transition-colors border border-purple-500/20"
+                                                >
+                                                    <ExternalLink className="h-3 w-3" />
+                                                    View in Stripe
+                                                </a>
+                                            )}
                                         </div>
                                     </div>
 
