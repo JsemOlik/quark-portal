@@ -183,12 +183,27 @@ class AdminController extends Controller
                 ];
             });
 
+        // Get all available roles for the dropdown
+        $availableRoles = \App\Models\Role::select('id', 'name', 'display_name', 'description')
+            ->orderBy('name')
+            ->get()
+            ->map(function ($role) {
+                return [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'display_name' => $role->display_name,
+                    'description' => $role->description,
+                ];
+            });
+
         return Inertia::render('admin/user-details', [
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
                 'is_admin' => $user->is_admin,
+                'role_id' => $user->role_id,
+                'role_name' => $user->role ? $user->role->display_name : null,
                 'stripe_id' => $user->stripe_id,
                 'billing_name' => $user->billing_name,
                 'billing_address' => $user->billing_address,
@@ -200,6 +215,7 @@ class AdminController extends Controller
             'subscriptions' => $subscriptions,
             'invoices' => $invoices,
             'previousEmails' => $previousEmails,
+            'availableRoles' => $availableRoles,
             'pterodactylUrl' => rtrim(config('services.pterodactyl.url'), '/'),
             'csrf' => csrf_token(),
         ]);
@@ -273,23 +289,33 @@ class AdminController extends Controller
     {
         $validated = $request->validate([
             'is_admin' => ['required', 'boolean'],
+            'role_id' => ['nullable', 'exists:roles,id'],
         ]);
 
         // Prevent admins from removing their own admin role
         if ($user->id === auth()->id() && !$validated['is_admin']) {
-            return back()->withErrors(['role' => 'You cannot remove your own admin role.']);
+            return back()->withErrors(['role' => 'You cannot remove your own admin/super admin status.']);
         }
 
+        // Update is_admin status
         $user->is_admin = $validated['is_admin'];
+
+        // Update role_id (null if super admin or no role)
+        $user->role_id = $validated['role_id'];
+
         $user->save();
+
+        $roleName = $user->role ? $user->role->display_name : ($validated['is_admin'] ? 'Super Admin' : 'No Role');
 
         Log::info('Admin updated user role', [
             'admin_id' => auth()->id(),
             'user_id' => $user->id,
             'is_admin' => $validated['is_admin'],
+            'role_id' => $validated['role_id'],
+            'role_name' => $roleName,
         ]);
 
-        return back()->with('success', 'User role updated successfully.');
+        return back()->with('success', "User role updated successfully to: {$roleName}");
     }
 
     public function sendPasswordReset(User $user)

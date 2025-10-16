@@ -35,12 +35,21 @@ type User = {
     name: string;
     email: string;
     is_admin: boolean;
+    role_id: number | null;
+    role_name: string | null;
     stripe_id: string | null;
     billing_name: string | null;
     billing_address: string | null;
     billing_city: string | null;
     billing_country: string | null;
     created_at: string;
+};
+
+type Role = {
+    id: number;
+    name: string;
+    display_name: string;
+    description: string;
 };
 
 type Server = {
@@ -117,6 +126,7 @@ export default function AdminUserDetails({
     invoices,
     previousEmails,
     pterodactylUrl,
+    availableRoles,
     csrf,
     flash,
 }: {
@@ -125,6 +135,7 @@ export default function AdminUserDetails({
     invoices: Invoice[];
     previousEmails: PreviousEmail[];
     pterodactylUrl: string;
+    availableRoles: Role[];
     csrf?: string;
     flash?: FlashMessages;
 }) {
@@ -158,11 +169,14 @@ export default function AdminUserDetails({
     }
 
     function handleRoleChange(value: string) {
-        const isAdmin = value === 'admin';
+        const isAdmin = value === 'super_admin';
+        const roleId = value === 'super_admin' || value === 'no_role' ? null : parseInt(value);
+
         router.post(
             `/admin/users/${user.id}/update-role`,
             {
                 is_admin: isAdmin,
+                role_id: roleId,
             },
             {
                 preserveScroll: true,
@@ -414,17 +428,43 @@ export default function AdminUserDetails({
 
                                     <div className="pt-3 border-t border-brand-cream/10">
                                         <label htmlFor="role" className="block text-xs text-brand-cream/60 mb-2">
-                                            User Role
+                                            User Role & Permissions
                                         </label>
-                                        <Select value={user.is_admin ? 'admin' : 'customer'} onValueChange={handleRoleChange}>
+                                        <Select
+                                            value={user.is_admin ? 'super_admin' : (user.role_id ? user.role_id.toString() : 'no_role')}
+                                            onValueChange={handleRoleChange}
+                                        >
                                             <SelectTrigger className="w-full rounded-xl bg-brand-cream/5 border-brand-cream/10 text-brand-cream">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent className="bg-[#1a1714] border-brand-cream/10">
-                                                <SelectItem value="customer" className="text-brand-cream hover:bg-brand-cream/10">Customer</SelectItem>
-                                                <SelectItem value="admin" className="text-brand-cream hover:bg-brand-cream/10">Admin</SelectItem>
+                                                <SelectItem value="no_role" className="text-brand-cream/60 hover:bg-brand-cream/10">
+                                                    No Role (Customer)
+                                                </SelectItem>
+                                                {availableRoles.map((role) => (
+                                                    <SelectItem
+                                                        key={role.id}
+                                                        value={role.id.toString()}
+                                                        className="text-brand-cream hover:bg-brand-cream/10"
+                                                    >
+                                                        {role.display_name}
+                                                    </SelectItem>
+                                                ))}
+                                                <SelectItem value="super_admin" className="text-purple-400 hover:bg-purple-500/10">
+                                                    Super Admin (Full Access)
+                                                </SelectItem>
                                             </SelectContent>
                                         </Select>
+                                        {user.role_name && !user.is_admin && (
+                                            <p className="mt-2 text-xs text-brand-cream/60">
+                                                Current role: <span className="font-medium text-brand">{user.role_name}</span>
+                                            </p>
+                                        )}
+                                        {user.is_admin && (
+                                            <p className="mt-2 text-xs text-purple-400">
+                                                Super Admins have unrestricted access to all features
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>

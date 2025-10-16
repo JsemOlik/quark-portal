@@ -9,23 +9,25 @@ Route::middleware(['auth', 'verified', 'admin', 'throttle:60,1']) // 60 requests
     ->group(function () {
         // View routes (higher limits)
         Route::middleware('throttle:120,1')->group(function () {
-            Route::get('/', [AdminController::class, 'index'])->name('index');
-            Route::get('/servers', [AdminController::class, 'servers'])->name('servers');
-            Route::get('/users/{user}', [AdminController::class, 'userDetails'])->name('users.show');
+            Route::get('/', [AdminController::class, 'index'])->middleware('permission:view_users')->name('index');
+            Route::get('/servers', [AdminController::class, 'servers'])->middleware('permission:view_servers')->name('servers');
+            Route::get('/users/{user}', [AdminController::class, 'userDetails'])->middleware('permission:view_users')->name('users.show');
         });
 
-        // Action routes (standard limits)
-        Route::post('/users/{user}/send-email', [AdminController::class, 'sendEmail'])->name('users.sendEmail');
-        Route::post('/users/{user}/update-role', [AdminController::class, 'updateRole'])->name('users.updateRole');
-        Route::post('/users/{user}/send-password-reset', [AdminController::class, 'sendPasswordReset'])->name('users.sendPasswordReset');
-        Route::post('/users/{user}/update-email', [AdminController::class, 'updateEmail'])->name('users.updateEmail');
-        Route::post('/users/{user}/update-password', [AdminController::class, 'updatePassword'])->name('users.updatePassword');
-        Route::post('/users/{user}/suspend-servers', [AdminController::class, 'suspendServers'])->name('users.suspendServers');
-        Route::post('/users/{user}/unsuspend-servers', [AdminController::class, 'unsuspendServers'])->name('users.unsuspendServers');
-        Route::post('/users/{user}/servers/{server}/cancel', [AdminController::class, 'cancelService'])->name('users.servers.cancel');
-        Route::delete('/users/{user}/delete-account', [AdminController::class, 'deleteAccount'])->name('users.deleteAccount');
+        // User management action routes
+        Route::post('/users/{user}/send-email', [AdminController::class, 'sendEmail'])->middleware('permission:send_emails')->name('users.sendEmail');
+        Route::post('/users/{user}/update-role', [AdminController::class, 'updateRole'])->middleware('permission:manage_user_roles')->name('users.updateRole');
+        Route::post('/users/{user}/send-password-reset', [AdminController::class, 'sendPasswordReset'])->middleware('permission:edit_users')->name('users.sendPasswordReset');
+        Route::post('/users/{user}/update-email', [AdminController::class, 'updateEmail'])->middleware('permission:edit_users')->name('users.updateEmail');
+        Route::post('/users/{user}/update-password', [AdminController::class, 'updatePassword'])->middleware('permission:edit_users')->name('users.updatePassword');
+        Route::delete('/users/{user}/delete-account', [AdminController::class, 'deleteAccount'])->middleware('permission:delete_users')->name('users.deleteAccount');
 
-        // Role management routes (Super Admin only)
+        // Server management action routes
+        Route::post('/users/{user}/suspend-servers', [AdminController::class, 'suspendServers'])->middleware('permission:suspend_servers')->name('users.suspendServers');
+        Route::post('/users/{user}/unsuspend-servers', [AdminController::class, 'unsuspendServers'])->middleware('permission:unsuspend_servers')->name('users.unsuspendServers');
+        Route::post('/users/{user}/servers/{server}/cancel', [AdminController::class, 'cancelService'])->middleware('permission:cancel_servers')->name('users.servers.cancel');
+
+        // Role management routes (Super Admin only) - No permission middleware needed as these check isSuperAdmin() in the controller
         Route::middleware('throttle:30,1')->group(function () {
             Route::get('/roles', [AdminController::class, 'roles'])->name('roles.index');
             Route::get('/roles/{role}', [AdminController::class, 'roleEdit'])->name('roles.edit');
