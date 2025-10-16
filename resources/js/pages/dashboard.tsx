@@ -26,7 +26,7 @@ export default function DashboardPage({
     serversCount = 0,
     invoices = [] as any[],
     nextBillings = [] as NextBilling[],
-    isAdmin = false,
+    // isAdmin = false,
     // csrf,
 }: {
     servers?: Server[];
@@ -230,13 +230,13 @@ export default function DashboardPage({
                                     </Button>
                                 </Link>
 
-                                {isAdmin && (
+                                {/* {isAdmin && (
                                     <Link href="/dashboard/admin/tickets">
                                         <Button size="lg" className="border border-white/20 text-brand-cream px-6 py-3 text-sm font-semibold hover:bg-white/10 transition-colors">
                                             Admin Tickets
                                         </Button>
                                     </Link>
-                                )}
+                                )} */}
                             </div>
                         </div>
                     </div>
