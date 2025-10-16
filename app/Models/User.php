@@ -60,4 +60,71 @@ class User extends Authenticatable
     {
         return $this->hasMany(Server::class);
     }
+
+    /**
+     * Get the role for the user.
+     */
+    public function role()
+    {
+        return $this->belongsTo(Role::class);
+    }
+
+    /**
+     * Check if user has a specific permission
+     * is_admin users have all permissions
+     */
+    public function hasPermission(string $permissionName): bool
+    {
+        // Super admins (is_admin = true) have all permissions
+        if ($this->is_admin) {
+            return true;
+        }
+
+        // Check if user has role and role has permission
+        return $this->role && $this->role->hasPermission($permissionName);
+    }
+
+    /**
+     * Check if user has any of the given permissions
+     */
+    public function hasAnyPermission(array $permissions): bool
+    {
+        if ($this->is_admin) {
+            return true;
+        }
+
+        foreach ($permissions as $permission) {
+            if ($this->hasPermission($permission)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if user has all of the given permissions
+     */
+    public function hasAllPermissions(array $permissions): bool
+    {
+        if ($this->is_admin) {
+            return true;
+        }
+
+        foreach ($permissions as $permission) {
+            if (!$this->hasPermission($permission)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if user is super admin
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->is_admin === true;
+    }
 }

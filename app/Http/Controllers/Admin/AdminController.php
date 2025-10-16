@@ -570,4 +570,137 @@ class AdminController extends Controller
 
         return redirect()->route('admin.index')->with('success', "User account for {$userName} has been deleted.");
     }
+
+    /**
+     * Display roles management page (Super Admin only)
+     */
+    public function roles()
+    {
+        // Only super admins can access this
+        if (!auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only super administrators can manage roles.');
+        }
+
+        $roles = \App\Models\Role::withCount(['users', 'permissions'])
+            ->with('permissions:id,name,display_name,group')
+            ->get()
+            ->map(function ($role) {
+                return [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'display_name' => $role->display_name,
+                    'description' => $role->description,
+                    'users_count' => $role->users_count,
+                    'permissions_count' => $role->permissions_count,
+                    'permissions' => $role->permissions->map(function ($permission) {
+                        return [
+                            'id' => $permission->id,
+                            'name' => $permission->name,
+                            'display_name' => $permission->display_name,
+                            'group' => $permission->group,
+                        ];
+                    }),
+                ];
+            });
+
+        return Inertia::render('admin/roles', [
+            'roles' => $roles,
+        ]);
+    }
+
+    /**
+     * Display role edit page (Super Admin only)
+     */
+    public function roleEdit(\App\Models\Role $role)
+    {
+        // Only super admins can access this
+        if (!auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only super administrators can manage roles.');
+        }
+
+        // Get all permissions grouped by category
+        $allPermissions = \App\Models\Permission::all()
+            ->groupBy('group')
+            ->map(function ($permissions, $group) {
+                return [
+                    'group' => $group,
+                    'permissions' => $permissions->map(function ($permission) {
+                        return [
+                            'id' => $permission->id,
+                            'name' => $permission->name,
+                            'display_name' => $permission->display_name,
+                            'description' => $permission->description,
+                        ];
+                    })->values(),
+                ];
+            })->values();
+
+        // Get role with current permissions
+        $roleData = [
+            'id' => $role->id,
+            'name' => $role->name,
+            'display_name' => $role->display_name,
+            'description' => $role->description,
+            'permission_ids' => $role->permissions->pluck('id')->toArray(),
+        ];
+
+        return Inertia::render('admin/role-edit', [
+            'role' => $roleData,
+            'permissionGroups' => $allPermissions,
+        ]);
+    }
+
+    /**
+     * Update role permissions (Super Admin only)
+     */
+    public function rolePermissionsUpdate(Request $request, \App\Models\Role $role)
+    {
+        // Only super admins can access this
+        if (!auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only super administrators can manage roles.');
+        }
+
+        $validated = $request->validate([
+            'permission_ids' => ['required', 'array'],
+            'permission_ids.*' => ['exists:permissions,id'],
+        ]);
+
+        // Sync permissions
+        $role->permissions()->sync($validated['permission_ids']);
+
+        Log::info('Admin updated role permissions', [
+            'admin_id' => auth()->id(),
+            'role_id' => $role->id,
+            'role_name' => $role->name,
+            'permissions_count' => count($validated['permission_ids']),
+        ]);
+
+        return back()->with('success', "Permissions updated successfully for {$role->display_name} role.");
+    }
+
+    /**
+     * Update role details (Super Admin only)
+     */
+    public function roleUpdate(Request $request, \App\Models\Role $role)
+    {
+        // Only super admins can access this
+        if (!auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only super administrators can manage roles.');
+        }
+
+        $validated = $request->validate([
+            'display_name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $role->update($validated);
+
+        Log::info('Admin updated role details', [
+            'admin_id' => auth()->id(),
+            'role_id' => $role->id,
+            'role_name' => $role->name,
+        ]);
+
+        return back()->with('success', "Role details updated successfully.");
+    }
 }
