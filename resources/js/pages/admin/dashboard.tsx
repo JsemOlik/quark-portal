@@ -9,6 +9,7 @@ type User = {
     name: string;
     email: string;
     is_admin: boolean;
+    role_name: string | null;
     servers_count: number;
     created_at: string;
 };
@@ -23,14 +24,21 @@ type Stats = {
 export default function AdminDashboard({
     users,
     stats,
+    permissions,
     auth,
 }: {
     users: User[];
     stats: Stats;
+    permissions: string[];
     auth?: { user?: { is_admin?: boolean } };
 }) {
     const [searchQuery, setSearchQuery] = React.useState('');
     const isSuperAdmin = auth?.user?.is_admin === true;
+
+    // Helper to check permissions
+    const hasPermission = (permission: string) => {
+        return permissions.includes('*') || permissions.includes(permission);
+    };
 
     const filteredUsers = users.filter(
         (user) =>
@@ -57,11 +65,13 @@ export default function AdminDashboard({
                             </p>
                         </div>
                         <div className="flex gap-3">
-                        <Link href="/admin/servers">
-                            <Button size='md' className='text-brand-brown bg-brand text-sm hover:bg-brand/80 transition-colors p-5'>
-                                View All Servers
-                            </Button>
-                        </Link>
+                        {hasPermission('view_servers') && (
+                            <Link href="/admin/servers">
+                                <Button size='md' className='text-brand-brown bg-brand text-sm hover:bg-brand/80 transition-colors p-5'>
+                                    View All Servers
+                                </Button>
+                            </Link>
+                        )}
                             {isSuperAdmin && (
                                 <Link href="/admin/roles">
                                     <Button size='md' className='bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border border-purple-500/20 transition-colors p-5'>
@@ -223,11 +233,15 @@ export default function AdminDashboard({
                                             <td className="py-3">
                                                 {user.is_admin ? (
                                                     <span className="inline-flex items-center rounded-full bg-purple-500/10 px-2 py-1 text-xs font-medium text-purple-400 border border-purple-500/20">
-                                                        Admin
+                                                        Super Admin
+                                                    </span>
+                                                ) : user.role_name ? (
+                                                    <span className="inline-flex items-center rounded-full bg-brand/10 px-2 py-1 text-xs font-medium text-brand border border-brand/20">
+                                                        {user.role_name}
                                                     </span>
                                                 ) : (
                                                     <span className="inline-flex items-center rounded-full bg-white/5 px-2 py-1 text-xs font-medium text-brand-cream/60 border border-white/10">
-                                                        User
+                                                        Customer
                                                     </span>
                                                 )}
                                             </td>

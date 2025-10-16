@@ -30,8 +30,10 @@ Route::middleware(['auth', 'verified', 'admin', 'throttle:60,1']) // 60 requests
         // Role management routes (Super Admin only) - No permission middleware needed as these check isSuperAdmin() in the controller
         Route::middleware('throttle:30,1')->group(function () {
             Route::get('/roles', [AdminController::class, 'roles'])->name('roles.index');
+            Route::post('/roles', [AdminController::class, 'roleStore'])->name('roles.store');
             Route::get('/roles/{role}', [AdminController::class, 'roleEdit'])->name('roles.edit');
             Route::put('/roles/{role}', [AdminController::class, 'roleUpdate'])->name('roles.update');
+            Route::delete('/roles/{role}', [AdminController::class, 'roleDestroy'])->name('roles.destroy');
             Route::post('/roles/{role}/permissions', [AdminController::class, 'rolePermissionsUpdate'])->name('roles.permissions.update');
         });
     });

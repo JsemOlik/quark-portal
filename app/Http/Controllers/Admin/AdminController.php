@@ -18,7 +18,8 @@ class AdminController extends Controller
 {
     public function index()
     {
-        $users = User::withCount('servers')
+        $users = User::with('role:id,display_name')
+            ->withCount('servers')
             ->orderByDesc('created_at')
             ->get()
             ->map(function ($user) {
@@ -27,6 +28,7 @@ class AdminController extends Controller
                     'name' => $user->name,
                     'email' => $user->email,
                     'is_admin' => $user->is_admin,
+                    'role_name' => $user->role ? $user->role->display_name : null,
                     'servers_count' => $user->servers_count,
                     'created_at' => $user->created_at->format('Y-m-d'),
                 ];
@@ -39,9 +41,21 @@ class AdminController extends Controller
             'cancelled_servers' => Server::where('status', 'cancelled')->count(),
         ];
 
+        // Get current admin's permissions
+        $currentAdmin = auth()->user();
+        $permissions = [];
+        if ($currentAdmin->isSuperAdmin()) {
+            // Super admins have all permissions
+            $permissions = ['*']; // Special marker for "all permissions"
+        } elseif ($currentAdmin->role) {
+            // Get user's role permissions
+            $permissions = $currentAdmin->role->permissions->pluck('name')->toArray();
+        }
+
         return Inertia::render('admin/dashboard', [
             'users' => $users,
             'stats' => $stats,
+            'permissions' => $permissions,
         ]);
     }
 
@@ -196,6 +210,15 @@ class AdminController extends Controller
                 ];
             });
 
+        // Get current admin's permissions
+        $currentAdmin = auth()->user();
+        $permissions = [];
+        if ($currentAdmin->isSuperAdmin()) {
+            $permissions = ['*'];
+        } elseif ($currentAdmin->role) {
+            $permissions = $currentAdmin->role->permissions->pluck('name')->toArray();
+        }
+
         return Inertia::render('admin/user-details', [
             'user' => [
                 'id' => $user->id,
@@ -216,6 +239,7 @@ class AdminController extends Controller
             'invoices' => $invoices,
             'previousEmails' => $previousEmails,
             'availableRoles' => $availableRoles,
+            'permissions' => $permissions,
             'pterodactylUrl' => rtrim(config('services.pterodactyl.url'), '/'),
             'csrf' => csrf_token(),
         ]);
@@ -728,5 +752,61 @@ class AdminController extends Controller
         ]);
 
         return back()->with('success', "Role details updated successfully.");
+    }
+
+    /**
+     * Create a new role (Super Admin only)
+     */
+    public function roleStore(Request $request)
+    {
+        // Only super admins can access this
+        if (!auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only super administrators can manage roles.');
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255', 'unique:roles,name', 'regex:/^[a-z_]+$/'],
+            'display_name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $role = \App\Models\Role::create($validated);
+
+        Log::info('Admin created new role', [
+            'admin_id' => auth()->id(),
+            'role_id' => $role->id,
+            'role_name' => $role->name,
+        ]);
+
+        return redirect()->route('admin.roles.index')->with('success', "Role '{$role->display_name}' created successfully.");
+    }
+
+    /**
+     * Delete a role (Super Admin only)
+     */
+    public function roleDestroy(\App\Models\Role $role)
+    {
+        // Only super admins can access this
+        if (!auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only super administrators can manage roles.');
+        }
+
+        // Check if role has users assigned
+        $usersCount = $role->users()->count();
+        if ($usersCount > 0) {
+            return back()->withErrors(['role' => "Cannot delete role '{$role->display_name}' because it has {$usersCount} user(s) assigned to it. Please reassign these users first."]);
+        }
+
+        $roleName = $role->display_name;
+
+        Log::warning('Admin deleted role', [
+            'admin_id' => auth()->id(),
+            'role_id' => $role->id,
+            'role_name' => $role->name,
+        ]);
+
+        $role->delete();
+
+        return redirect()->route('admin.roles.index')->with('success', "Role '{$roleName}' deleted successfully.");
     }
 }

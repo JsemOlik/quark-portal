@@ -127,6 +127,7 @@ export default function AdminUserDetails({
     previousEmails,
     pterodactylUrl,
     availableRoles,
+    permissions,
     csrf,
     flash,
 }: {
@@ -136,6 +137,7 @@ export default function AdminUserDetails({
     previousEmails: PreviousEmail[];
     pterodactylUrl: string;
     availableRoles: Role[];
+    permissions: string[];
     csrf?: string;
     flash?: FlashMessages;
 }) {
@@ -154,6 +156,11 @@ export default function AdminUserDetails({
     const [showCancelDialog, setShowCancelDialog] = React.useState(false);
     const [cancelServerId, setCancelServerId] = React.useState<number | null>(null);
     const [cancelType, setCancelType] = React.useState<'immediate' | 'period_end'>('period_end');
+
+    // Helper to check permissions
+    const hasPermission = (permission: string) => {
+        return permissions.includes('*') || permissions.includes(permission);
+    };
 
     React.useEffect(() => {
         if (flash?.success || flash?.error) {
@@ -359,11 +366,15 @@ export default function AdminUserDetails({
                             <h1 className="text-2xl font-semibold text-brand-cream">
                                 {user.name}
                             </h1>
-                            {user.is_admin && (
+                            {user.is_admin ? (
                                 <span className="inline-flex items-center rounded-full bg-purple-500/10 px-3 py-1 text-xs font-medium text-purple-400 border border-purple-500/20">
-                                    Admin
+                                    Super Admin
                                 </span>
-                            )}
+                            ) : user.role_name ? (
+                                <span className="inline-flex items-center rounded-full bg-brand/10 px-3 py-1 text-xs font-medium text-brand border border-brand/20">
+                                    {user.role_name}
+                                </span>
+                            ) : null}
                         </div>
                         <p className="text-sm text-brand-cream/70">
                             User ID: {user.id}
@@ -426,46 +437,48 @@ export default function AdminUserDetails({
                                         </div>
                                     </div>
 
-                                    <div className="pt-3 border-t border-brand-cream/10">
-                                        <label htmlFor="role" className="block text-xs text-brand-cream/60 mb-2">
-                                            User Role & Permissions
-                                        </label>
-                                        <Select
-                                            value={user.is_admin ? 'super_admin' : (user.role_id ? user.role_id.toString() : 'no_role')}
-                                            onValueChange={handleRoleChange}
-                                        >
-                                            <SelectTrigger className="w-full rounded-xl bg-brand-cream/5 border-brand-cream/10 text-brand-cream">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent className="bg-[#1a1714] border-brand-cream/10">
-                                                <SelectItem value="no_role" className="text-brand-cream/60 hover:bg-brand-cream/10">
-                                                    No Role (Customer)
-                                                </SelectItem>
-                                                {availableRoles.map((role) => (
-                                                    <SelectItem
-                                                        key={role.id}
-                                                        value={role.id.toString()}
-                                                        className="text-brand-cream hover:bg-brand-cream/10"
-                                                    >
-                                                        {role.display_name}
+                                    {hasPermission('manage_user_roles') && (
+                                        <div className="pt-3 border-t border-brand-cream/10">
+                                            <label htmlFor="role" className="block text-xs text-brand-cream/60 mb-2">
+                                                User Role & Permissions
+                                            </label>
+                                            <Select
+                                                value={user.is_admin ? 'super_admin' : (user.role_id ? user.role_id.toString() : 'no_role')}
+                                                onValueChange={handleRoleChange}
+                                            >
+                                                <SelectTrigger className="w-full rounded-xl bg-brand-cream/5 border-brand-cream/10 text-brand-cream">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent className="bg-[#1a1714] border-brand-cream/10">
+                                                    <SelectItem value="no_role" className="text-brand-cream/60 hover:bg-brand-cream/10">
+                                                        No Role (Customer)
                                                     </SelectItem>
-                                                ))}
-                                                <SelectItem value="super_admin" className="text-purple-400 hover:bg-purple-500/10">
-                                                    Super Admin (Full Access)
-                                                </SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        {user.role_name && !user.is_admin && (
-                                            <p className="mt-2 text-xs text-brand-cream/60">
-                                                Current role: <span className="font-medium text-brand">{user.role_name}</span>
-                                            </p>
-                                        )}
-                                        {user.is_admin && (
-                                            <p className="mt-2 text-xs text-purple-400">
-                                                Super Admins have unrestricted access to all features
-                                            </p>
-                                        )}
-                                    </div>
+                                                    {availableRoles.map((role) => (
+                                                        <SelectItem
+                                                            key={role.id}
+                                                            value={role.id.toString()}
+                                                            className="text-brand-cream hover:bg-brand-cream/10"
+                                                        >
+                                                            {role.display_name}
+                                                        </SelectItem>
+                                                    ))}
+                                                    <SelectItem value="super_admin" className="text-purple-400 hover:bg-purple-500/10">
+                                                        Super Admin (Full Access)
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            {user.role_name && !user.is_admin && (
+                                                <p className="mt-2 text-xs text-brand-cream/60">
+                                                    Current role: <span className="font-medium text-brand">{user.role_name}</span>
+                                                </p>
+                                            )}
+                                            {user.is_admin && (
+                                                <p className="mt-2 text-xs text-purple-400">
+                                                    Super Admins have unrestricted access to all features
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -536,74 +549,80 @@ export default function AdminUserDetails({
                                 </div>
                             </div>
 
-                            {/* Account Actions */}
+                            {/* Account Actions - Only show if user has ANY of these permissions */}
+                            {(hasPermission('edit_users') || hasPermission('delete_users') || hasPermission('suspend_servers') || hasPermission('unsuspend_servers')) && (
                             <div className="rounded-2xl border border-brand-cream/10 bg-brand-cream/5 p-5">
                                 <h2 className="mb-4 text-lg font-semibold text-brand-cream">
                                     Account Actions
                                 </h2>
                                 <div className="space-y-3">
                                     {/* Change Email */}
-                                    <form onSubmit={handleUpdateEmail} className="space-y-2">
-                                        <label htmlFor="new-email" className="block text-xs text-brand-cream/60">
-                                            Change Email Address
-                                        </label>
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="email"
-                                                id="new-email"
-                                                value={newEmail}
-                                                onChange={(e) => setNewEmail(e.target.value)}
-                                                className="flex-1 rounded-xl bg-brand-cream/5 border border-brand-cream/10 px-3 py-2 text-sm text-brand-cream placeholder:text-brand-cream/40 focus:outline-none focus:ring-2 focus:ring-brand"
-                                                placeholder="new@email.com"
-                                            />
-                                            <Button
-                                                type="submit"
-                                                disabled={!newEmail}
-                                                className="rounded-xl bg-brand text-brand-brown hover:bg-brand/80 disabled:opacity-50"
-                                            >
-                                                Update
-                                            </Button>
-                                        </div>
-                                    </form>
+                                    {hasPermission('edit_users') && (
+                                        <form onSubmit={handleUpdateEmail} className="space-y-2">
+                                            <label htmlFor="new-email" className="block text-xs text-brand-cream/60">
+                                                Change Email Address
+                                            </label>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="email"
+                                                    id="new-email"
+                                                    value={newEmail}
+                                                    onChange={(e) => setNewEmail(e.target.value)}
+                                                    className="flex-1 rounded-xl bg-brand-cream/5 border border-brand-cream/10 px-3 py-2 text-sm text-brand-cream placeholder:text-brand-cream/40 focus:outline-none focus:ring-2 focus:ring-brand"
+                                                    placeholder="new@email.com"
+                                                />
+                                                <Button
+                                                    type="submit"
+                                                    disabled={!newEmail}
+                                                    className="rounded-xl bg-brand text-brand-brown hover:bg-brand/80 disabled:opacity-50"
+                                                >
+                                                    Update
+                                                </Button>
+                                            </div>
+                                        </form>
+                                    )}
 
                                     {/* Change Password */}
-                                    <form onSubmit={handleUpdatePassword} className="space-y-2">
-                                        <label htmlFor="new-password" className="block text-xs text-brand-cream/60">
-                                            Set New Password
-                                        </label>
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="password"
-                                                id="new-password"
-                                                name="new-password"
-                                                value={newPassword}
-                                                onChange={(e) => setNewPassword(e.target.value)}
-                                                className="flex-1 rounded-xl bg-brand-cream/5 border border-brand-cream/10 px-3 py-2 text-sm text-brand-cream placeholder:text-brand-cream/40 focus:outline-none focus:ring-2 focus:ring-brand"
-                                                placeholder="New password (min 8 characters)"
-                                                minLength={8}
-                                                autoComplete="new-password"
-                                            />
-                                            <Button
-                                                type="submit"
-                                                disabled={!newPassword || newPassword.length < 8}
-                                                className="rounded-xl bg-brand text-brand-brown hover:bg-brand/80 disabled:opacity-50"
-                                            >
-                                                Update
-                                            </Button>
-                                        </div>
-                                    </form>
+                                    {hasPermission('edit_users') && (
+                                        <form onSubmit={handleUpdatePassword} className="space-y-2">
+                                            <label htmlFor="new-password" className="block text-xs text-brand-cream/60">
+                                                Set New Password
+                                            </label>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="password"
+                                                    id="new-password"
+                                                    name="new-password"
+                                                    value={newPassword}
+                                                    onChange={(e) => setNewPassword(e.target.value)}
+                                                    className="flex-1 rounded-xl bg-brand-cream/5 border border-brand-cream/10 px-3 py-2 text-sm text-brand-cream placeholder:text-brand-cream/40 focus:outline-none focus:ring-2 focus:ring-brand"
+                                                    placeholder="New password (min 8 characters)"
+                                                    minLength={8}
+                                                    autoComplete="new-password"
+                                                />
+                                                <Button
+                                                    type="submit"
+                                                    disabled={!newPassword || newPassword.length < 8}
+                                                    className="rounded-xl bg-brand text-brand-brown hover:bg-brand/80 disabled:opacity-50"
+                                                >
+                                                    Update
+                                                </Button>
+                                            </div>
+                                        </form>
+                                    )}
 
                                     {/* Password Reset */}
-                                    <Dialog open={showPasswordResetDialog} onOpenChange={setShowPasswordResetDialog}>
-                                        <DialogTrigger asChild>
-                                            <Button
-                                                className="w-full justify-start gap-2 rounded-xl bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20"
-                                                variant="ghost"
-                                            >
-                                                <KeyRound className="h-4 w-4" />
-                                                Send Password Reset
-                                            </Button>
-                                        </DialogTrigger>
+                                    {hasPermission('edit_users') && (
+                                        <Dialog open={showPasswordResetDialog} onOpenChange={setShowPasswordResetDialog}>
+                                            <DialogTrigger asChild>
+                                                <Button
+                                                    className="w-full justify-start gap-2 rounded-xl bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20"
+                                                    variant="ghost"
+                                                >
+                                                    <KeyRound className="h-4 w-4" />
+                                                    Send Password Reset
+                                                </Button>
+                                            </DialogTrigger>
                                         <DialogContent className="bg-[#1a1714] border-brand-cream/10">
                                             <DialogHeader>
                                                 <DialogTitle className="text-brand-cream">
@@ -629,11 +648,14 @@ export default function AdminUserDetails({
                                                 </Button>
                                             </DialogFooter>
                                         </DialogContent>
-                                    </Dialog>
+                                        </Dialog>
+                                    )}
 
                                     {/* Suspend/Unsuspend Buttons */}
+                                    {(hasPermission('suspend_servers') || hasPermission('unsuspend_servers')) && (
                                     <div className="flex gap-2">
                                         {/* Suspend Dialog */}
+                                        {hasPermission('suspend_servers') && (
                                         <Dialog open={showSuspendDialog} onOpenChange={setShowSuspendDialog}>
                                             <DialogTrigger asChild>
                                                 <Button
@@ -677,8 +699,10 @@ export default function AdminUserDetails({
                                                 </DialogFooter>
                                             </DialogContent>
                                         </Dialog>
+                                        )}
 
                                         {/* Unsuspend Dialog */}
+                                        {hasPermission('unsuspend_servers') && (
                                         <Dialog open={showUnsuspendDialog} onOpenChange={setShowUnsuspendDialog}>
                                             <DialogTrigger asChild>
                                                 <Button
@@ -722,9 +746,12 @@ export default function AdminUserDetails({
                                                 </DialogFooter>
                                             </DialogContent>
                                         </Dialog>
+                                        )}
                                     </div>
+                                    )}
 
                                     {/* Delete Account */}
+                                    {hasPermission('delete_users') && (
                                     <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
                                         <DialogTrigger asChild>
                                             <Button
@@ -767,8 +794,10 @@ export default function AdminUserDetails({
                                             </DialogFooter>
                                         </DialogContent>
                                     </Dialog>
+                                    )}
                                 </div>
                             </div>
+                            )}
                         </div>
 
                         {/* Right Column - Servers, Subscriptions, Invoices */}
@@ -870,7 +899,7 @@ export default function AdminUserDetails({
                                                             View in Stripe
                                                         </a>
                                                     )}
-                                                    {server.subscription_id && server.status !== 'cancelled' && (
+                                                    {hasPermission('cancel_servers') && server.subscription_id && server.status !== 'cancelled' && (
                                                         <Button
                                                             onClick={() => {
                                                                 setCancelServerId(server.id);
@@ -1011,7 +1040,8 @@ export default function AdminUserDetails({
                                 )}
                             </div>
 
-                            {/* Send Email */}
+                            {/* Send Email - Only show if user has send_emails permission */}
+                            {hasPermission('send_emails') && (
                             <div className="rounded-2xl border border-brand-cream/10 bg-brand-cream/5 p-5">
                                 <div className="mb-4 flex items-center justify-between">
                                     <div className="flex items-center gap-2">
@@ -1174,6 +1204,7 @@ export default function AdminUserDetails({
                                     </div>
                                 </form>
                             </div>
+                            )}
                         </div>
                     </div>
                 </section>

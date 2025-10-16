@@ -76,7 +76,7 @@ export default function Navbar() {
                     <Link href="/dashboard">Dashboard</Link>
                   </Button>
 
-                  {auth.user.is_admin && (
+                  {(auth.user.is_admin || auth.user.role_id) && (
                     <Button
                       asChild
                       variant="outline"
@@ -202,7 +202,7 @@ export default function Navbar() {
                   >
                     Dashboard
                   </Link>
-                  {auth.user.is_admin && (
+                  {(auth.user.is_admin || auth.user.role_id) && (
                     <Link
                       href="/admin"
                       onClick={() => setOpen(false)}
