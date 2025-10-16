@@ -27,6 +27,16 @@ Route::middleware(['auth', 'verified', 'admin', 'throttle:60,1']) // 60 requests
         Route::post('/users/{user}/unsuspend-servers', [AdminController::class, 'unsuspendServers'])->middleware('permission:unsuspend_servers')->name('users.unsuspendServers');
         Route::post('/users/{user}/servers/{server}/cancel', [AdminController::class, 'cancelService'])->middleware('permission:cancel_servers')->name('users.servers.cancel');
 
+        // Ticket management routes (staff with view_tickets permission)
+        Route::middleware('throttle:60,1')->group(function () {
+            Route::get('/tickets', [\App\Http\Controllers\TicketController::class, 'adminIndex'])->middleware('permission:view_tickets')->name('tickets.index');
+            Route::post('/tickets/{ticket}/reply', [\App\Http\Controllers\TicketController::class, 'adminReply'])->middleware('permission:reply_tickets')->name('tickets.reply');
+            Route::post('/tickets/{ticket}/status', [\App\Http\Controllers\TicketController::class, 'adminSetStatus'])->middleware('permission:close_tickets')->name('tickets.status');
+            Route::post('/tickets/{ticket}/assign', [\App\Http\Controllers\TicketController::class, 'adminAssignTicket'])->middleware('permission:assign_tickets')->name('tickets.assign');
+            Route::post('/tickets/{ticket}/priority', [\App\Http\Controllers\TicketController::class, 'adminSetPriority'])->middleware('permission:view_tickets')->name('tickets.priority');
+            Route::delete('/tickets/{ticket}', [\App\Http\Controllers\TicketController::class, 'adminDelete'])->middleware('permission:delete_tickets')->name('tickets.delete');
+        });
+
         // Role management routes (Super Admin only) - No permission middleware needed as these check isSuperAdmin() in the controller
         Route::middleware('throttle:30,1')->group(function () {
             Route::get('/roles', [AdminController::class, 'roles'])->name('roles.index');

@@ -16,6 +16,15 @@ class Ticket extends Model
         'message',
         'department',
         'status',
+        'priority',
+        'assigned_to',
+        'last_reply_at',
+        'closed_at',
+    ];
+
+    protected $casts = [
+        'last_reply_at' => 'datetime',
+        'closed_at' => 'datetime',
     ];
 
     public function user()
@@ -26,6 +35,11 @@ class Ticket extends Model
     public function server()
     {
         return $this->belongsTo(Server::class);
+    }
+
+    public function assignedTo()
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
     }
 
     public function messages()

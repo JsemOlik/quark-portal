@@ -23,14 +23,4 @@ Route::middleware(['auth', 'verified'])->prefix('dashboard')->name('dashboard.')
     // Secure file download route
     Route::get('tickets/attachment/{message}', [\App\Http\Controllers\TicketController::class, 'downloadAttachment'])
         ->name('ticket.attachment');
-
-    // Admin ticket routes - protected with admin middleware
-    Route::middleware([\App\Http\Middleware\EnsureAdmin::class])->group(function () {
-        Route::get('admin/tickets', [\App\Http\Controllers\TicketController::class, 'adminIndex'])
-            ->name('admin.tickets');
-        Route::post('admin/tickets/{ticket}/reply', [\App\Http\Controllers\TicketController::class, 'adminReply'])
-            ->name('admin.tickets.reply');
-        Route::post('admin/tickets/{ticket}/status', [\App\Http\Controllers\TicketController::class, 'adminSetStatus'])
-            ->name('admin.tickets.status');
-    });
 });
