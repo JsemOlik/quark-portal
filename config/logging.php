@@ -61,16 +61,18 @@ return [
         'single' => [
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', 'warning'), // Changed from 'debug' to 'warning'
             'replace_placeholders' => true,
+            'tap' => [App\Logging\CustomizeFormatter::class],
         ],
 
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', 'warning'), // Changed from 'debug' to 'warning'
             'days' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
+            'tap' => [App\Logging\CustomizeFormatter::class],
         ],
 
         'slack' => [
