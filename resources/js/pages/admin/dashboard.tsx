@@ -1,7 +1,7 @@
 import React from 'react';
 import { Head, Link } from '@inertiajs/react';
 import Navbar from '@/components/navbar';
-import { Users, Server, Activity, XCircle, ExternalLink } from 'lucide-react';
+import { Users, Server, Activity, XCircle, ExternalLink, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 type User = {
@@ -23,11 +23,14 @@ type Stats = {
 export default function AdminDashboard({
     users,
     stats,
+    auth,
 }: {
     users: User[];
     stats: Stats;
+    auth?: { user?: { is_admin?: boolean } };
 }) {
     const [searchQuery, setSearchQuery] = React.useState('');
+    const isSuperAdmin = auth?.user?.is_admin === true;
 
     const filteredUsers = users.filter(
         (user) =>
@@ -53,18 +56,26 @@ export default function AdminDashboard({
                                 Manage users and servers
                             </p>
                         </div>
-                        <div>
+                        <div className="flex gap-3">
                         <Link href="/admin/servers">
                             <Button size='md' className='text-brand-brown bg-brand text-sm hover:bg-brand/80 transition-colors p-5'>
                                 View All Servers
                             </Button>
                         </Link>
+                            {isSuperAdmin && (
+                                <Link href="/admin/roles">
+                                    <Button size='md' className='bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border border-purple-500/20 transition-colors p-5'>
+                                        <Shield className="h-4 w-4 mr-2" />
+                                        Roles & Permissions
+                                    </Button>
+                                </Link>
+                            )}
                             <a
                                 href="https://panel.jsemolik.dev/admin"
                                 target="_blank"
                                 rel="noopener noreferrer"
                             >
-                                <Button size='md' className='cursor-pointer bg-brand-cream/10 text-brand-cream hover:bg-brand-cream/20 border border-brand-cream/20 transition-colors ml-3 p-5'>
+                                <Button size='md' className='cursor-pointer bg-brand-cream/10 text-brand-cream hover:bg-brand-cream/20 border border-brand-cream/20 transition-colors p-5'>
                                     <ExternalLink className="h-4 w-4" />
                                     Open Panel
                                 </Button>
