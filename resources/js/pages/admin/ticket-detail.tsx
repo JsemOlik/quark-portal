@@ -41,6 +41,7 @@ type TicketData = {
     user_id: number;
     assigned_to: number | null;
     assigned_to_name: string | null;
+    can_manage: boolean;
 };
 
 type Message = {
@@ -51,6 +52,11 @@ type Message = {
     attachment_name: string | null;
     attachment_path: string | null;
     created_at: string;
+    type?: string;
+    metadata?: {
+        old_value?: string;
+        new_value?: string;
+    };
 };
 
 type UserInfo = {
@@ -304,54 +310,79 @@ export default function AdminTicketDetail({
                                     Conversation ({messages.length})
                                 </h2>
                                 <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
-                                    {messages.map((msg) => (
-                                        <div
-                                            key={msg.id}
-                                            className={`flex ${msg.is_staff ? 'justify-start' : 'justify-end'}`}
-                                        >
-                                            <div className={`flex gap-3 max-w-[80%] ${msg.is_staff ? 'flex-row' : 'flex-row-reverse'}`}>
-                                                <div
-                                                    className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                                                        msg.is_staff
-                                                            ? 'bg-brand/20 text-brand'
-                                                            : 'bg-blue-500/20 text-blue-400'
-                                                    }`}
-                                                >
-                                                    {msg.is_staff ? <UserCog className="h-5 w-5" /> : <User className="h-5 w-5" />}
+                                    {messages.map((msg) => {
+                                        // Render event badge for status/priority/assignment changes
+                                        if (msg.type && msg.type !== 'message') {
+                                            const eventColorClasses = {
+                                                status_change: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+                                                priority_change: 'bg-purple-500/10 border-purple-500/20 text-purple-400',
+                                                assignment_change: 'bg-orange-500/10 border-orange-500/20 text-orange-400',
+                                            }[msg.type] || 'bg-gray-500/10 border-gray-500/20 text-gray-400';
+
+                                            return (
+                                                <div key={msg.id} className="w-full py-2">
+                                                    <div className={`w-full py-3 px-4 border rounded-lg text-center ${eventColorClasses}`}>
+                                                        <span className="text-sm font-medium">
+                                                            {msg.message}
+                                                        </span>
+                                                        <span className="text-xs opacity-70 ml-2">
+                                                            {msg.created_at}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <div>
+                                            );
+                                        }
+
+                                        // Render normal message
+                                        return (
+                                            <div
+                                                key={msg.id}
+                                                className={`flex ${msg.is_staff ? 'justify-start' : 'justify-end'}`}
+                                            >
+                                                <div className={`flex gap-3 max-w-[80%] ${msg.is_staff ? 'flex-row' : 'flex-row-reverse'}`}>
                                                     <div
-                                                        className={`rounded-2xl px-4 py-3 ${
+                                                        className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
                                                             msg.is_staff
-                                                                ? 'bg-white/10 border border-white/10'
-                                                                : 'bg-brand/10 border border-brand/20'
+                                                                ? 'bg-brand/20 text-brand'
+                                                                : 'bg-blue-500/20 text-blue-400'
                                                         }`}
                                                     >
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <span className="text-sm font-semibold text-brand-cream">
-                                                                {msg.user_name}
-                                                            </span>
-                                                            {msg.is_staff && (
-                                                                <span className="text-xs bg-brand/20 text-brand px-1.5 py-0.5 rounded">Staff</span>
+                                                        {msg.is_staff ? <UserCog className="h-5 w-5" /> : <User className="h-5 w-5" />}
+                                                    </div>
+                                                    <div>
+                                                        <div
+                                                            className={`rounded-2xl px-4 py-3 ${
+                                                                msg.is_staff
+                                                                    ? 'bg-white/10 border border-white/10'
+                                                                    : 'bg-brand/10 border border-brand/20'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className="text-sm font-semibold text-brand-cream">
+                                                                    {msg.user_name}
+                                                                </span>
+                                                                {msg.is_staff && (
+                                                                    <span className="text-xs bg-brand/20 text-brand px-1.5 py-0.5 rounded">Staff</span>
+                                                                )}
+                                                                <span className="text-xs text-brand-cream/50">{msg.created_at}</span>
+                                                            </div>
+                                                            <p className="text-brand-cream/90 whitespace-pre-wrap">{msg.message}</p>
+                                                            {msg.attachment_name && msg.attachment_path && (
+                                                                <a
+                                                                    href={msg.attachment_path}
+                                                                    download
+                                                                    className="mt-2 inline-flex items-center gap-2 text-sm text-brand hover:underline"
+                                                                >
+                                                                    <Download className="h-4 w-4" />
+                                                                    {msg.attachment_name}
+                                                                </a>
                                                             )}
-                                                            <span className="text-xs text-brand-cream/50">{msg.created_at}</span>
                                                         </div>
-                                                        <p className="text-brand-cream/90 whitespace-pre-wrap">{msg.message}</p>
-                                                        {msg.attachment_name && msg.attachment_path && (
-                                                            <a
-                                                                href={msg.attachment_path}
-                                                                download
-                                                                className="mt-2 inline-flex items-center gap-2 text-sm text-brand hover:underline"
-                                                            >
-                                                                <Download className="h-4 w-4" />
-                                                                {msg.attachment_name}
-                                                            </a>
-                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                     <div ref={messagesEndRef} />
                                 </div>
                             </div>
@@ -360,6 +391,11 @@ export default function AdminTicketDetail({
                             {hasPermission('reply_tickets') && (
                                 <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
                                     <h2 className="text-lg font-semibold text-brand-cream mb-4">Send Reply as Staff</h2>
+                                    {!ticket.can_manage && !hasPermission('*') && (
+                                        <div className="mb-4 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 text-sm">
+                                            ⚠️ This ticket is assigned to {ticket.assigned_to_name || 'another staff member'}. You cannot reply to it.
+                                        </div>
+                                    )}
                                     <form onSubmit={handleSubmit} className="space-y-4">
                                         <div>
                                             <Textarea
@@ -367,7 +403,8 @@ export default function AdminTicketDetail({
                                                 onChange={(e) => setReplyMessage(e.target.value)}
                                                 placeholder="Type your response here..."
                                                 rows={4}
-                                                className="bg-white/5 border-white/10 text-brand-cream placeholder:text-brand-cream/40"
+                                                disabled={!ticket.can_manage}
+                                                className="bg-white/5 border-white/10 text-brand-cream placeholder:text-brand-cream/40 disabled:opacity-50 disabled:cursor-not-allowed"
                                             />
                                         </div>
 
@@ -379,10 +416,11 @@ export default function AdminTicketDetail({
                                                     onChange={handleFileSelect}
                                                     className="hidden"
                                                     id="attachment"
+                                                    disabled={!ticket.can_manage}
                                                 />
                                                 <label
                                                     htmlFor="attachment"
-                                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer text-sm text-brand-cream transition-colors"
+                                                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 ${ticket.can_manage ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'} text-sm text-brand-cream transition-colors`}
                                                 >
                                                     <Paperclip className="h-4 w-4" />
                                                     Attach File
@@ -395,7 +433,7 @@ export default function AdminTicketDetail({
                                             </div>
                                             <Button
                                                 type="submit"
-                                                disabled={isSubmitting || !replyMessage.trim()}
+                                                disabled={isSubmitting || !replyMessage.trim() || !ticket.can_manage}
                                                 className="bg-brand text-brand-brown hover:bg-brand/90 font-semibold flex items-center gap-2"
                                             >
                                                 <Send className="h-4 w-4" />
@@ -414,12 +452,17 @@ export default function AdminTicketDetail({
                                 <h3 className="text-sm font-semibold text-brand-cream mb-4 uppercase tracking-wide">
                                     Ticket Actions
                                 </h3>
+                                {!ticket.can_manage && !hasPermission('*') && (
+                                    <div className="mb-3 p-2 rounded bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs">
+                                        🔒 Assigned to {ticket.assigned_to_name}
+                                    </div>
+                                )}
                                 <div className="space-y-3">
                                     {hasPermission('close_tickets') && (
                                         <div>
                                             <label className="text-xs text-brand-cream/60 mb-2 block">Status</label>
-                                            <Select value={ticket.status} onValueChange={handleStatusChange}>
-                                                <SelectTrigger className="bg-white/5 border-white/10 text-brand-cream">
+                                            <Select value={ticket.status} onValueChange={handleStatusChange} disabled={!ticket.can_manage}>
+                                                <SelectTrigger className="bg-white/5 border-white/10 text-brand-cream disabled:opacity-50 disabled:cursor-not-allowed">
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent className="bg-[#1a1714] border-white/10">
@@ -434,8 +477,8 @@ export default function AdminTicketDetail({
                                     {hasPermission('view_tickets') && (
                                         <div>
                                             <label className="text-xs text-brand-cream/60 mb-2 block">Priority</label>
-                                            <Select value={ticket.priority} onValueChange={handlePriorityChange}>
-                                                <SelectTrigger className="bg-white/5 border-white/10 text-brand-cream">
+                                            <Select value={ticket.priority} onValueChange={handlePriorityChange} disabled={!ticket.can_manage}>
+                                                <SelectTrigger className="bg-white/5 border-white/10 text-brand-cream disabled:opacity-50 disabled:cursor-not-allowed">
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent className="bg-[#1a1714] border-white/10">
@@ -454,8 +497,9 @@ export default function AdminTicketDetail({
                                             <Select
                                                 value={ticket.assigned_to?.toString() || 'unassigned'}
                                                 onValueChange={handleAssignmentChange}
+                                                disabled={!ticket.can_manage}
                                             >
-                                                <SelectTrigger className="bg-white/5 border-white/10 text-brand-cream">
+                                                <SelectTrigger className="bg-white/5 border-white/10 text-brand-cream disabled:opacity-50 disabled:cursor-not-allowed">
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent className="bg-[#1a1714] border-white/10">

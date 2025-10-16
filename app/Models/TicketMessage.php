@@ -16,10 +16,13 @@ class TicketMessage extends Model
         'attachment_path',
         'attachment_name',
         'is_staff',
+        'type',
+        'metadata',
     ];
 
     protected $casts = [
         'is_staff' => 'boolean',
+        'metadata' => 'array',
     ];
 
     public function ticket()

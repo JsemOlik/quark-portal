@@ -147,6 +147,8 @@ class TicketController extends Controller
                     'attachment_name' => $message->attachment_name,
                     'attachment_path' => $message->attachment_path ? route('ticket.attachment', ['message' => $message->id]) : null,
                     'created_at' => $message->created_at->format('Y-m-d H:i'),
+                    'type' => $message->type ?? 'message',
+                    'metadata' => $message->metadata,
                 ];
             });
 
@@ -279,8 +281,22 @@ class TicketController extends Controller
         abort_unless($ticket->user_id === Auth::id(), 403);
 
         try {
+            $oldStatus = $ticket->status;
             $ticket->status = 'resolved';
             $ticket->save();
+
+            // Create status change event message
+            TicketMessage::create([
+                'ticket_id' => $ticket->id,
+                'user_id' => Auth::id(),
+                'message' => Auth::user()->name . ' marked ticket as resolved',
+                'is_staff' => false,
+                'type' => 'status_change',
+                'metadata' => [
+                    'old_value' => $oldStatus,
+                    'new_value' => 'resolved',
+                ],
+            ]);
 
             Log::info('User resolved ticket', [
                 'user_id' => Auth::id(),
@@ -496,6 +512,8 @@ class TicketController extends Controller
                     'attachment_name' => $message->attachment_name,
                     'attachment_path' => $message->attachment_path ? route('ticket.attachment', ['message' => $message->id]) : null,
                     'created_at' => $message->created_at->format('Y-m-d H:i'),
+                    'type' => $message->type ?? 'message',
+                    'metadata' => $message->metadata,
                 ];
             });
 
@@ -556,6 +574,7 @@ class TicketController extends Controller
                 'created_at' => $ticket->created_at->format('Y-m-d H:i'),
                 'last_reply_at' => $ticket->last_reply_at ? $ticket->last_reply_at->format('Y-m-d H:i') : null,
                 'closed_at' => $ticket->closed_at ? $ticket->closed_at->format('Y-m-d H:i') : null,
+                'can_manage' => $ticket->canManage($user),
             ],
             'messages' => $messages,
             'user' => $userInfo,
@@ -571,6 +590,10 @@ class TicketController extends Controller
      */
     public function adminReply(Request $request, Ticket $ticket)
     {
+        // Check if admin can manage this ticket
+        abort_unless($ticket->canManage(Auth::user()), 403,
+            'This ticket is assigned to another staff member. You do not have permission to reply.');
+
         $validated = $request->validate([
             'message' => 'required|string',
             'attachment' => [
@@ -651,6 +674,10 @@ class TicketController extends Controller
      */
     public function adminSetStatus(Request $request, Ticket $ticket)
     {
+        // Check if admin can manage this ticket
+        abort_unless($ticket->canManage(Auth::user()), 403,
+            'This ticket is assigned to another staff member. You do not have permission to change the status.');
+
         $validated = $request->validate([
             'status' => 'required|string|in:open,resolved,closed',
         ]);
@@ -668,6 +695,19 @@ class TicketController extends Controller
             }
 
             $ticket->save();
+
+            // Create status change event message
+            TicketMessage::create([
+                'ticket_id' => $ticket->id,
+                'user_id' => Auth::id(),
+                'message' => Auth::user()->name . ' marked ticket as ' . $validated['status'],
+                'is_staff' => true,
+                'type' => 'status_change',
+                'metadata' => [
+                    'old_value' => $oldStatus,
+                    'new_value' => $validated['status'],
+                ],
+            ]);
 
             Log::info('Admin updated ticket status', [
                 'admin_id' => Auth::id(),
@@ -704,6 +744,10 @@ class TicketController extends Controller
      */
     public function adminAssignTicket(Request $request, Ticket $ticket)
     {
+        // Check if admin can manage this ticket
+        abort_unless($ticket->canManage(Auth::user()), 403,
+            'This ticket is assigned to another staff member. You do not have permission to reassign it.');
+
         $validated = $request->validate([
             'assigned_to' => 'nullable|exists:users,id',
         ]);
@@ -713,6 +757,23 @@ class TicketController extends Controller
         try {
             $ticket->assigned_to = $validated['assigned_to'];
             $ticket->save();
+
+            // Get assignee names for event message
+            $oldAssigneeName = $oldAssignee ? User::find($oldAssignee)->name : 'Unassigned';
+            $newAssigneeName = $ticket->assignedTo ? $ticket->assignedTo->name : 'Unassigned';
+
+            // Create assignment change event message
+            TicketMessage::create([
+                'ticket_id' => $ticket->id,
+                'user_id' => Auth::id(),
+                'message' => Auth::user()->name . ' assigned ticket to ' . $newAssigneeName,
+                'is_staff' => true,
+                'type' => 'assignment_change',
+                'metadata' => [
+                    'old_value' => $oldAssigneeName,
+                    'new_value' => $newAssigneeName,
+                ],
+            ]);
 
             Log::info('Admin assigned ticket', [
                 'admin_id' => Auth::id(),
@@ -738,6 +799,10 @@ class TicketController extends Controller
      */
     public function adminSetPriority(Request $request, Ticket $ticket)
     {
+        // Check if admin can manage this ticket
+        abort_unless($ticket->canManage(Auth::user()), 403,
+            'This ticket is assigned to another staff member. You do not have permission to change the priority.');
+
         $validated = $request->validate([
             'priority' => 'required|string|in:low,normal,high,urgent',
         ]);
@@ -747,6 +812,19 @@ class TicketController extends Controller
         try {
             $ticket->priority = $validated['priority'];
             $ticket->save();
+
+            // Create priority change event message
+            TicketMessage::create([
+                'ticket_id' => $ticket->id,
+                'user_id' => Auth::id(),
+                'message' => Auth::user()->name . ' changed priority from ' . $oldPriority . ' to ' . $validated['priority'],
+                'is_staff' => true,
+                'type' => 'priority_change',
+                'metadata' => [
+                    'old_value' => $oldPriority,
+                    'new_value' => $validated['priority'],
+                ],
+            ]);
 
             Log::info('Admin updated ticket priority', [
                 'admin_id' => Auth::id(),
@@ -770,6 +848,10 @@ class TicketController extends Controller
      */
     public function adminDelete(Ticket $ticket)
     {
+        // Check if admin can manage this ticket
+        abort_unless($ticket->canManage(Auth::user()), 403,
+            'This ticket is assigned to another staff member. You do not have permission to delete it.');
+
         try {
             // Delete attachments from storage
             foreach ($ticket->messages as $msg) {
