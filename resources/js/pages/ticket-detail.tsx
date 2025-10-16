@@ -79,8 +79,9 @@ export default function TicketDetail({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    const canUserResolve = !isAdmin && isOwnTicket && ticket.status !== 'resolved';
-    const canUserOpen = !isAdmin && isOwnTicket && ticket.status !== 'open';
+    const canUserResolve = !isAdmin && isOwnTicket && ticket.status === 'open';
+    // Users CANNOT reopen tickets - only admins can
+    const canUserOpen = false;
     // Users cannot close
 
     const adminCanResolve = isAdmin;

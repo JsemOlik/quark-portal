@@ -13,10 +13,9 @@ Route::middleware(['auth', 'verified'])->prefix('dashboard')->name('dashboard.')
         ->name('tickets.reply');
 
     // Resolve and delete (owner-only)
+    // Users can only mark their own tickets as resolved, they cannot reopen them
     Route::post('tickets/{ticket}/resolve', [\App\Http\Controllers\TicketController::class, 'resolve'])
         ->name('tickets.resolve');
-    Route::post('tickets/{ticket}/open', [\App\Http\Controllers\TicketController::class, 'open'])
-        ->name('tickets.open');
     Route::post('tickets/{ticket}/delete', [\App\Http\Controllers\TicketController::class, 'destroy'])
         ->name('tickets.destroy');
 
