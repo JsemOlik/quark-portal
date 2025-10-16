@@ -63,7 +63,7 @@ return [
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'warning'), // Changed from 'debug' to 'warning'
             'replace_placeholders' => true,
-            'tap' => [App\Logging\CustomizeFormatter::class],
+            // 'tap' => [App\Logging\CustomizeFormatter::class], // Temporarily disabled due to type hint issues
         ],
 
         'daily' => [
@@ -72,7 +72,7 @@ return [
             'level' => env('LOG_LEVEL', 'warning'), // Changed from 'debug' to 'warning'
             'days' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
-            'tap' => [App\Logging\CustomizeFormatter::class],
+            // 'tap' => [App\Logging\CustomizeFormatter::class], // Temporarily disabled due to type hint issues
         ],
 
         'slack' => [
