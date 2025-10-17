@@ -88,7 +88,7 @@ export default function AdminDashboard({
                                     </Button>
                                 </Link>
                             )}
-                            <a
+                            {/* <a
                                 href="https://panel.jsemolik.dev/admin"
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -107,7 +107,7 @@ export default function AdminDashboard({
                                     <ExternalLink className="h-4 w-4" />
                                     Open Metrics
                                 </Button>
-                            </a>
+                            </a> */}
                         </div>
                     </div>
 
