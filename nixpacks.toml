@@ -37,12 +37,6 @@ cmds = [
 [start]
 cmd = "/assets/start.sh"
 
-[variables]
-# Prefer platform logging over file logs to avoid /app/storage/logs permissions
-LOG_CHANNEL = "stack"
-LOG_STACK_CHANNELS = "stderr,single"
-LOG_LEVEL = "debug"
-
 # Set SESSION_DRIVER=file unless you’ve migrated sessions table
 # SESSION_DRIVER = "file"
 # If you use database sessions, ensure DB is ready and migrations run:
