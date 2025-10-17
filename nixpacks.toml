@@ -1,5 +1,4 @@
 [phases.setup]
-# Add any other packages you need (e.g., git, unzip, node, pnpm, etc.)
 nixPkgs = [
   "php83",
   "php83Extensions.redis",
@@ -15,49 +14,39 @@ nixPkgs = [
   "php83Extensions.gd",
   "nginx",
   "nodejs_20",
-  "supervisor",
   "python311Packages.supervisor"
 ]
 
-# Optional: if you need composer and pnpm/yarn
-# nixPkgs += ["composer", "pnpm", "yarn"]
+[phases.install]
+cmds = [
+  "mkdir -p /var/log/nginx && mkdir -p /var/cache/nginx",
+  # If composer.json/package.json exist, you can install here:
+  "composer install --ignore-platform-reqs || true",
+  "npm ci || true"
+]
 
 [phases.build]
 cmds = [
-  # Copy supervisor configs
   "mkdir -p /etc/supervisor/conf.d/",
   "cp /assets/worker-*.conf /etc/supervisor/conf.d/",
   "cp /assets/supervisord.conf /etc/supervisord.conf",
   "chmod +x /assets/start.sh",
-
-  # PHP-FPM conf
-  "cp /assets/php-fpm.conf /assets/php-fpm.conf",
-
-  # If you have a Node SSR build or frontend build, do it here (optional)
-  # "npm ci --prefix /app",
-  # "npm run build --prefix /app",
-
-  # Composer install (if composer is available)
-  # "composer install --no-dev --optimize-autoloader --working-dir=/app || true",
-
-  # Cache Laravel config/routes/views (optional; requires .env available at build)
-  # "php /app/artisan config:cache || true",
-  # "php /app/artisan route:cache || true",
-  # "php /app/artisan view:cache || true"
+  "cp /assets/php-fpm.conf /assets/php-fpm.conf"
 ]
 
 [start]
 cmd = "/assets/start.sh"
 
 [variables]
-# Optional: prefer stderr logging so platform captures logs
+# Prefer platform logging over file logs to avoid /app/storage/logs permissions
 LOG_CHANNEL = "stack"
 LOG_STACK_CHANNELS = "stderr,single"
 LOG_LEVEL = "debug"
 
-# Ensure session driver is set; use 'file' if DB not ready yet
+# Set SESSION_DRIVER=file unless you’ve migrated sessions table
 # SESSION_DRIVER = "file"
-# or use database (requires migrations): SESSION_DRIVER = "database"
+# If you use database sessions, ensure DB is ready and migrations run:
+# SESSION_DRIVER = "database"
 
 [staticAssets]
 "start.sh" = '''
@@ -65,27 +54,27 @@ LOG_LEVEL = "debug"
 set -euo pipefail
 
 # Transform the nginx configuration
-node /assets/scripts/prestart.mjs /assets/nginx.template.conf /etc/nginx.conf
+node /assets/scripts/prestart.mjs /assets/nginx.template.conf /etc/nginx.conf || true
 
-# Laravel permissions (only needed if using file logs or file sessions/cache)
+# Laravel permissions (for cache, sessions, file logs)
 if [ -d /app/storage ]; then
   chown -R www-data:www-data /app/storage /app/bootstrap/cache || true
   chmod -R ug+rwX /app/storage /app/bootstrap/cache || true
 fi
 
-# Optionally run migrations before starting services if DB is reachable
+# Optionally run migrations before services (set RUN_MIGRATIONS=0 to skip)
 if [ -f /app/artisan ]; then
   if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
     echo "Attempting migrations..."
-    # Try to create session table if SESSION_DRIVER=database and migration missing
-    if grep -qE '^SESSION_DRIVER=database$' /app/.env 2>/dev/null || [ "${SESSION_DRIVER:-}" = "database" ]; then
+    # If using database sessions, ensure session migration exists
+    if [ "${SESSION_DRIVER:-}" = "database" ]; then
       php /app/artisan session:table || true
     fi
     php /app/artisan migrate --force || true
   fi
 fi
 
-# Start supervisor (manages nginx, php-fpm, workers)
+# Start supervisor (nginx, php-fpm, workers)
 exec supervisord -c /etc/supervisord.conf -n
 '''
 
@@ -237,8 +226,7 @@ http {
 
     location ~ \.php$ {
       fastcgi_buffer_size 8k;
-      fastcgi_pass 127.0.0.1:9000
-      ;
+      fastcgi_pass 127.0.0.1:9000;
       fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
       include $!{nginx}/conf/fastcgi_params;
       include $!{nginx}/conf/fastcgi.conf;
