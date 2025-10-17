@@ -16,11 +16,12 @@ FROM php:8.4-apache
 
 # System packages
 RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
     libpq-dev \
     libzip-dev \
     unzip \
     git \
-    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Enable Apache mod_rewrite
@@ -28,6 +29,11 @@ RUN a2enmod rewrite
 
 # PHP extensions
 RUN docker-php-ext-install pdo_pgsql zip bcmath
+
+# Install Node.js (using NodeSource for Node 20)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get update && apt-get install -y nodejs \
+    && node -v && npm -v
 
 # Workdir
 WORKDIR /var/www/html
@@ -50,13 +56,11 @@ RUN composer install \
 # Copy application code (provides artisan)
 COPY . .
 
-# Copy node modules from node-deps for faster build, if using npm
-# If you use pnpm/yarn, adjust the path accordingly.
+# Bring node_modules from node-deps for faster build
 COPY --from=node-deps /app/node_modules ./node_modules
 COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* ./
 
 # Build frontend assets now that php/artisan exists
-# If you use pnpm/yarn, swap the command accordingly.
 RUN npm run build
 
 # Permissions for Laravel
