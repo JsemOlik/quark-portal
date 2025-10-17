@@ -22,7 +22,8 @@ return new class extends Migration {
             $dupes = DB::table('plan_prices')
                 ->select('plan_id', 'interval', 'currency', DB::raw('COUNT(*) as cnt'))
                 ->groupBy('plan_id', 'interval', 'currency')
-                ->having('cnt', '>', 1)
+                // ->having('cnt', '>', 1)
+                ->havingRaw('COUNT(*) > 1') // Postgres-compatible
                 ->get();
 
             foreach ($dupes as $d) {
@@ -42,6 +43,7 @@ return new class extends Migration {
                     ->where('interval', $d->interval)
                     ->where('currency', $d->currency)
                     ->where('id', '!=', $keepId)
+
                     ->delete();
             }
         });
