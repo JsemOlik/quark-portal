@@ -1,27 +1,92 @@
 [phases.setup]
-nixPkgs = ["...", "python311Packages.supervisor"]
+# Add any other packages you need (e.g., git, unzip, node, pnpm, etc.)
+nixPkgs = [
+  "php83",
+  "php83Extensions.redis",
+  "php83Extensions.opcache",
+  "php83Extensions.pdo",
+  "php83Extensions.pdo_pgsql",
+  "php83Extensions.pgsql",
+  "php83Extensions.mbstring",
+  "php83Extensions.xml",
+  "php83Extensions.curl",
+  "php83Extensions.fileinfo",
+  "php83Extensions.bcmath",
+  "php83Extensions.gd",
+  "nginx",
+  "nodejs_20",
+  "supervisor",
+  "python311Packages.supervisor"
+]
+
+# Optional: if you need composer and pnpm/yarn
+# nixPkgs += ["composer", "pnpm", "yarn"]
 
 [phases.build]
 cmds = [
-    "mkdir -p /etc/supervisor/conf.d/",
-    "cp /assets/worker-*.conf /etc/supervisor/conf.d/",
-    "cp /assets/supervisord.conf /etc/supervisord.conf",
-    "chmod +x /assets/start.sh",
-    "..."
+  # Copy supervisor configs
+  "mkdir -p /etc/supervisor/conf.d/",
+  "cp /assets/worker-*.conf /etc/supervisor/conf.d/",
+  "cp /assets/supervisord.conf /etc/supervisord.conf",
+  "chmod +x /assets/start.sh",
+
+  # PHP-FPM conf
+  "cp /assets/php-fpm.conf /assets/php-fpm.conf",
+
+  # If you have a Node SSR build or frontend build, do it here (optional)
+  # "npm ci --prefix /app",
+  # "npm run build --prefix /app",
+
+  # Composer install (if composer is available)
+  # "composer install --no-dev --optimize-autoloader --working-dir=/app || true",
+
+  # Cache Laravel config/routes/views (optional; requires .env available at build)
+  # "php /app/artisan config:cache || true",
+  # "php /app/artisan route:cache || true",
+  # "php /app/artisan view:cache || true"
 ]
 
 [start]
-cmd = '/assets/start.sh'
+cmd = "/assets/start.sh"
+
+[variables]
+# Optional: prefer stderr logging so platform captures logs
+LOG_CHANNEL = "stack"
+LOG_STACK_CHANNELS = "stderr,single"
+LOG_LEVEL = "debug"
+
+# Ensure session driver is set; use 'file' if DB not ready yet
+# SESSION_DRIVER = "file"
+# or use database (requires migrations): SESSION_DRIVER = "database"
 
 [staticAssets]
 "start.sh" = '''
 #!/bin/bash
+set -euo pipefail
 
 # Transform the nginx configuration
 node /assets/scripts/prestart.mjs /assets/nginx.template.conf /etc/nginx.conf
 
-# Start supervisor
-supervisord -c /etc/supervisord.conf -n
+# Laravel permissions (only needed if using file logs or file sessions/cache)
+if [ -d /app/storage ]; then
+  chown -R www-data:www-data /app/storage /app/bootstrap/cache || true
+  chmod -R ug+rwX /app/storage /app/bootstrap/cache || true
+fi
+
+# Optionally run migrations before starting services if DB is reachable
+if [ -f /app/artisan ]; then
+  if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
+    echo "Attempting migrations..."
+    # Try to create session table if SESSION_DRIVER=database and migration missing
+    if grep -qE '^SESSION_DRIVER=database$' /app/.env 2>/dev/null || [ "${SESSION_DRIVER:-}" = "database" ]; then
+      php /app/artisan session:table || true
+    fi
+    php /app/artisan migrate --force || true
+  fi
+fi
+
+# Start supervisor (manages nginx, php-fpm, workers)
+exec supervisord -c /etc/supervisord.conf -n
 '''
 
 "supervisord.conf" = '''
@@ -77,8 +142,8 @@ autostart=true
 autorestart=true
 stopasgroup=true
 killasgroup=true
-numprocs=12 # To reduce memory/CPU usage, change to 2.
-startsecs=0
+numprocs=2
+startsecs=2
 stopwaitsecs=3600
 stdout_logfile=/var/log/worker-laravel.log
 stderr_logfile=/var/log/worker-laravel.log
@@ -90,6 +155,7 @@ process_name=%(program_name)s_%(process_num)02d
 command=bash -c 'exec php /app/artisan inertia:start-ssr'
 autostart=true
 autorestart=true
+startsecs=2
 stderr_logfile=/var/log/worker-inertia-ssr.log
 stdout_logfile=/var/log/worker-inertia-ssr.log
 '''
@@ -119,71 +185,68 @@ daemon off;
 worker_rlimit_nofile 8192;
 
 events {
-  worker_connections  4096;  # Default: 1024
+  worker_connections 4096;
 }
 
 http {
-    include    $!{nginx}/conf/mime.types;
-    index    index.html index.htm index.php;
+  include $!{nginx}/conf/mime.types;
+  index index.html index.htm index.php;
 
-    default_type application/octet-stream;
-    log_format   main '$remote_addr - $remote_user [$time_local]  $status '
-        '"$request" $body_bytes_sent "$http_referer" '
-        '"$http_user_agent" "$http_x_forwarded_for"';
-    access_log /var/log/nginx-access.log;
-    error_log /var/log/nginx-error.log;
-    sendfile     on;
-    tcp_nopush   on;
-    server_names_hash_bucket_size 128; # this seems to be required for some vhosts
+  default_type application/octet-stream;
+  log_format main '$remote_addr - $remote_user [$time_local] $status '
+                  '"$request" $body_bytes_sent "$http_referer" '
+                  '"$http_user_agent" "$http_x_forwarded_for"';
+  access_log /var/log/nginx-access.log;
+  error_log /var/log/nginx-error.log;
+  sendfile on;
+  tcp_nopush on;
+  server_names_hash_bucket_size 128;
 
-    server {
-        listen ${PORT};
-        listen [::]:${PORT};
-        server_name localhost;
+  server {
+    listen ${PORT};
+    listen [::]:${PORT};
+    server_name localhost;
 
-        $if(NIXPACKS_PHP_ROOT_DIR) (
-            root ${NIXPACKS_PHP_ROOT_DIR};
-        ) else (
-            root /app;
-        )
+    $if(NIXPACKS_PHP_ROOT_DIR) (
+      root ${NIXPACKS_PHP_ROOT_DIR};
+    ) else (
+      root /app;
+    )
 
-        add_header X-Content-Type-Options "nosniff";
+    add_header X-Content-Type-Options "nosniff";
+    client_max_body_size 35M;
+    index index.php;
+    charset utf-8;
 
-        client_max_body_size 35M;
+    $if(NIXPACKS_PHP_FALLBACK_PATH) (
+      location / {
+        try_files $uri $uri/ ${NIXPACKS_PHP_FALLBACK_PATH}?$query_string;
+      }
+    ) else (
+      location / {
+        try_files $uri $uri/ /index.php?$query_string;
+      }
+    )
 
-        index index.php;
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
 
-        charset utf-8;
+    $if(IS_LARAVEL) (
+      error_page 404 /index.php;
+    ) else ()
 
-
-        $if(NIXPACKS_PHP_FALLBACK_PATH) (
-            location / {
-                try_files $uri $uri/ ${NIXPACKS_PHP_FALLBACK_PATH}?$query_string;
-            }
-        ) else (
-          location / {
-                try_files $uri $uri/ /index.php?$query_string;
-           }
-        )
-
-        location = /favicon.ico { access_log off; log_not_found off; }
-        location = /robots.txt  { access_log off; log_not_found off; }
-
-        $if(IS_LARAVEL) (
-            error_page 404 /index.php;
-        ) else ()
-
-        location ~ \.php$ {
-            fastcgi_buffer_size 8k;
-            fastcgi_pass 127.0.0.1:9000;
-            fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-            include $!{nginx}/conf/fastcgi_params;
-            include $!{nginx}/conf/fastcgi.conf;
-        }
-
-        location ~ /\.(?!well-known).* {
-            deny all;
-        }
+    location ~ \.php$ {
+      fastcgi_buffer_size 8k;
+      fastcgi_pass 127.0.0.1:9000
+      ;
+      fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+      include $!{nginx}/conf/fastcgi_params;
+      include $!{nginx}/conf/fastcgi.conf;
     }
+
+    location ~ /\.(?!well-known).* {
+      deny all;
+    }
+  }
 }
 '''
