@@ -1,26 +1,43 @@
 FROM php:8.4-apache
 
-# Install required packages
+# Install system deps
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     libzip-dev \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* \
-    && a2enmod rewrite \
-    && docker-php-ext-install pdo_pgsql zip
+    unzip \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
+# Enable Apache mod_rewrite
+RUN a2enmod rewrite
 
-# Copy Laravel app files
-COPY . /var/www/html
+# Install PHP extensions
+# - pdo_pgsql: for PostgreSQL
+# - zip: for Composer packages
+# - bcmath: required by moneyphp/money
+RUN docker-php-ext-install pdo_pgsql zip bcmath
 
-# Set write permissions to used folders
-RUN chown -R www-data:www-data /var/www/html /var/www/html/storage /var/www/html/bootstrap/cache
-
-# Change working directory to Laravel app root
+# Set working directory
 WORKDIR /var/www/html
 
-# Install composer and Laravel dependencies with composer
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
-    && composer install --no-dev --optimize-autoloader
+# Copy only composer files first to leverage caching
+COPY composer.json composer.lock ./
 
-# Expose port 80 for Apache
+# Install Composer
+RUN curl -sS https://getcomposer.org/installer | php -- \
+    --install-dir=/usr/local/bin --filename=composer
+
+# Install PHP deps without dev for production
+RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+
+# Now copy the rest of the app
+COPY . .
+
+# Fix permissions (Laravel storage/bootstrap/cache)
+RUN chown -R www-data:www-data storage bootstrap/cache \
+    && find storage -type d -exec chmod 775 {} \; \
+    && find storage -type f -exec chmod 664 {} \; \
+    && chmod -R 775 bootstrap/cache
+
+# Expose Apache
 EXPOSE 80
