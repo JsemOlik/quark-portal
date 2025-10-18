@@ -73,4 +73,14 @@ RUN chown -R www-data:www-data storage bootstrap/cache \
 RUN composer dump-autoload -o \
     && composer run-script post-autoload-dump || true
 
+RUN php artisan config:cache \
+    && php artisan route:cache \
+    && php artisan view:cache
+
+RUN php artisan migrate
+
+RUN php artisan db:seed RolesAndPermissionsSeeder
+
+RUN php artisan p:stripe:sync
+
 EXPOSE 80
