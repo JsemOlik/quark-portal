@@ -1,14 +1,87 @@
+name: quark-portal
+
+x-common:
+  db: &db-environment
+    # Postgres credentials
+    POSTGRES_PASSWORD: &db-password "CHANGE_ME_DB_PASSWORD"
+    POSTGRES_USER: "quark"
+    POSTGRES_DB: "portal"
+
+  app: &app-environment
+    APP_ENV: "production"
+    APP_DEBUG: "false"
+    APP_URL: "https://example.com"
+    APP_TIMEZONE: "UTC"
+    APP_LOCALE: "en"
+    APP_FALLBACK_LOCALE: "en"
+    LOG_CHANNEL: "stack"
+    LOG_LEVEL: "debug"
+
+    # Laravel drivers (no Redis)
+    SESSION_DRIVER: "database"
+    QUEUE_CONNECTION: "database"
+    CACHE_STORE: "database"
+
+    # Database (matches db service)
+    DB_CONNECTION: "pgsql"
+    DB_HOST: "db"
+    DB_PORT: "5432"
+    DB_DATABASE: "portal"
+    DB_USERNAME: "quark"
+    # DB_PASSWORD is injected from the db anchor via merge below
+
+    # Optional app-specific vars you shared
+    PTERO_URL: "https://panel.example.com"
+    PTERO_APP_KEY: "ptero_..."
+    CASHIER_CURRENCY: "czk"
+
+  mail: &mail-environment
+    MAIL_MAILER: "smtp"
+    MAIL_HOST: "smtp.seznam.cz"
+    MAIL_PORT: "465"
+    MAIL_USERNAME: "noreply@example.com"
+    MAIL_PASSWORD: "ChangeMe123!"
+    MAIL_ENCRYPTION: "ssl"
+    MAIL_FROM_ADDRESS: "noreply@example.com"
+    MAIL_FROM_NAME: "Quark Portal"
+
 services:
-  quark-portal:
-    image: ghcr.io/jsemolik/quark-portal:latest
-    container_name: quark-portal
-    restart: unless-stopped
+  db:
+    image: postgres:15
+    restart: always
+    container_name: quark-portal-db
     environment:
-      - APP_PORT=8080
-      - APP_ENV=production
-    ports:
-      - "8080:8080"
+      <<: *db-environment
     volumes:
-      - quark-portal-data:/var/lib/quark-portal
+      - quark_db_data:/var/lib/postgresql/data
+    # Optional: expose if you want to connect from host
+    # ports:
+    #   - "5432:5432"
+
+  app:
+    # Option A: use your published image on GHCR
+    image: ghcr.io/<your-username>/<your-repo>:latest
+    # Option B: build locally from your Dockerfile instead of image:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+
+    container_name: quark-portal-app
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "8000:80" # Apache inside container uses 80
+    environment:
+      <<: [*app-environment, *mail-environment]
+      DB_PASSWORD: *db-password
+      # If you prefer to inject APP_KEY at runtime, set it here or run artisan key:generate
+      # APP_KEY: "base64:..."
+
+    volumes:
+      # Persist logs and storage outside container image
+      - ./storage:/var/www/html/storage
+      - ./bootstrap/cache:/var/www/html/bootstrap/cache
+
 volumes:
-  quark-portal-data:
+  quark_db_data:
