@@ -19,7 +19,6 @@ try {
         if (isset($d['retry'])) {
             $retryAfter = (int) $d['retry'];
         }
-        // Prefer ends_at (ISO), fallback to time (UNIX timestamp)
         if (!empty($d['ends_at'])) {
             $endsAtIso = (string) $d['ends_at'];
         } elseif (!empty($d['time'])) {
@@ -37,76 +36,65 @@ $endsAtDisplay = null;
 if ($endsAtIso) {
     try {
         $dt = new DateTimeImmutable($endsAtIso);
-        // If you prefer local app timezone display, you could convert:
-        // $tzObj = new DateTimeZone($timezone);
-        // $dt = $dt->setTimezone($tzObj);
         $endsAtDisplay = $dt->format('Y-m-d H:i:s') . ' ' . $timezone;
     } catch (\Throwable $e) {
         $endsAtDisplay = null;
     }
 }
 ?>
+<!-- Debug: keys in down file: <?= htmlspecialchars(implode(', ', $debugKeys), ENT_QUOTES, 'UTF-8') ?> -->
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <title>We’ll be back soon</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <style>
+        :root { color-scheme: light dark; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell,
+                Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji",
+                "Segoe UI Emoji", "Segoe UI Symbol";
+            background: #0b0f17;
+            color: #e6edf3;
+        }
+        .wrap { min-height: 100%; display: grid; place-items: center; padding: 2rem; }
+        .card {
+            max-width: 720px; width: 100%;
+            background: #111827; border: 1px solid #1f2937; border-radius: 12px;
+            padding: 2rem; box-shadow: 0 10px 30px rgba(0,0,0,.3);
+        }
+        h1 { margin: 0 0 0.75rem; font-size: 1.75rem; }
+        p { margin: 0.5rem 0; line-height: 1.6; color: #c7d2fe; }
+        .muted { color: #9ca3af; font-size: 0.95rem; }
+        code { background: #0b1220; padding: 0.1rem 0.35rem; border-radius: 6px; border: 1px solid #1f2a44; }
+        .footer { margin-top: 1.25rem; color: #6b7280; font-size: 0.85rem; }
+    </style>
 </head>
-<body class="min-h-screen bg-brand-brown text-[rgb(255,245,235)] dark:bg-brand-brown">
-    <main class="min-h-screen w-full flex items-center justify-center px-4">
-        <div class="w-full max-w-2xl text-center">
-            <div class="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-brand-cream/80">
-                503 • Scheduled Maintenance
-            </div>
+<body>
+<div class="wrap">
+    <div class="card">
+        <h1>Scheduled Maintenance</h1>
+        <p><?= htmlspecialchars($customMessage, ENT_QUOTES, 'UTF-8') ?></p>
 
-            <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-brand-cream">
-                We’ll be back soon
-            </h1>
-
-            <p class="mt-3 text-brand-cream/80">
-                <?= htmlspecialchars($customMessage, ENT_QUOTES, 'UTF-8') ?>
+        <?php if ($endsAtDisplay): ?>
+            <p class="muted">
+                Expected to be back by:
+                <strong><?= htmlspecialchars($endsAtDisplay, ENT_QUOTES, 'UTF-8') ?></strong>
             </p>
+        <?php else: ?>
+            <p class="muted">We don't know yet, but we are trying our best!</p>
+        <?php endif; ?>
 
-            <?php if ($endsAtDisplay): ?>
-                <p class="mt-2 text-sm text-brand-cream/70">
-                    Expected to be back by:
-                    <span class="font-semibold text-brand">
-                        <?= htmlspecialchars($endsAtDisplay, ENT_QUOTES, 'UTF-8') ?>
-                    </span>
-                </p>
-            <?php else: ?>
-                <p class="mt-2 text-sm text-brand-cream/70">
-                    We don't know when we'll be back yet, but we are trying our best!
-                </p>
-            <?php endif; ?>
+        <?php if (!empty($retryAfter)) : ?>
+            <p class="muted">Retry-After: <code><?= (int) $retryAfter ?> seconds</code></p>
+        <?php endif; ?>
 
-            <?php if (!empty($retryAfter)) : ?>
-                <p class="mt-2 text-xs text-brand-cream/60">
-                    Retry-After:
-                    <code class="rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5">
-                        <?= (int) $retryAfter ?> seconds
-                    </code>
-                </p>
-            <?php endif; ?>
-
-            <div class="mt-6">
-                <a href="{{ url('/status') }}"
-                   class="mr-2 inline-flex items-center gap-2 rounded-xl bg-brand-cream/5 text-brand-cream px-4 py-3 text-sm font-semibold hover:bg-brand-cream/10 transition-colors border border-brand-cream/50">w
-                    View Status Page
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </a>
-                <a href="{{ url('/dashboard') }}"
-                   class="inline-flex items-center gap-2 rounded-xl bg-brand text-brand-brown px-4 py-3 text-sm font-semibold hover:bg-brand/90 transition-colors">
-                    Join the Discord
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </a>
-            </div>
-        </div>
-    </main>
+        <?php if (config('app.name')) : ?>
+            <div class="footer"><?= htmlspecialchars(config('app.name'), ENT_QUOTES, 'UTF-8') ?></div>
+        <?php endif; ?>
+    </div>
+</div>
 </body>
 </html>
