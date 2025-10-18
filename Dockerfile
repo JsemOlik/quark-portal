@@ -77,10 +77,4 @@ RUN php artisan config:cache \
     && php artisan route:cache \
     && php artisan view:cache
 
-RUN php artisan migrate
-
-RUN php artisan db:seed RolesAndPermissionsSeeder
-
-RUN php artisan p:stripe:sync
-
 EXPOSE 80
