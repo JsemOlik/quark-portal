@@ -15,6 +15,7 @@ RUN if [ -f package-lock.json ]; then npm ci; \
 FROM php:8.4-apache
 
 # System packages (added libicu-dev, libxml2-dev, zlib1g-dev for intl/mbstring building)
+# Also add libonig-dev and pkg-config so mbstring/Oniguruma is found during php build.
 RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
@@ -25,6 +26,8 @@ RUN apt-get update && apt-get install -y \
     libicu-dev \
     libxml2-dev \
     zlib1g-dev \
+    libonig-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # Enable Apache mod_rewrite
