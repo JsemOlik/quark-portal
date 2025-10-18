@@ -31,41 +31,43 @@ WORKDIR /var/www/html
 
 # 1) Copy only composer manifests first to leverage layer cache
 COPY composer.json composer.lock ./
-
-# 2) Install Composer
 RUN curl -sS https://getcomposer.org/installer | php -- \
   --install-dir=/usr/local/bin --filename=composer
 
-# 3) Install PHP deps early (no app code yet -> good cache).
-#    If your composer.json runs scripts requiring app files, use --no-scripts here,
-#    then run a second composer install after copying the app.
-RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader --no-scripts
+# Install deps WITHOUT scripts so it won't call artisan yet
+RUN composer install \
+  --no-dev --prefer-dist --no-interaction --optimize-autoloader --no-scripts
 
-# 4) Copy app code
+# Copy app
 COPY . .
 
-# 5) If you used --no-scripts above, run a second pass to execute scripts
+# Ensure .env exists and contains safe defaults so service constructors don't blow up
+# Use envsubst-like sed to ensure required keys exist with dummy values
+RUN [ -f .env ] || cp .env.example .env \
+  && sed -i 's#^APP_ENV=.*#APP_ENV=production#' .env || true \
+  && grep -q '^APP_KEY=' .env || echo 'APP_KEY=base64:FAKEKEYFORBUILDONLY=' >> .env \
+  && grep -q '^PTERO_APP_KEY=' .env || echo 'PTERO_APP_KEY=dummy_key' >> .env \
+  && grep -q '^PTERO_URL=' .env || echo 'PTERO_URL=http://localhost' >> .env
+
+# Now run composer scripts (if you need them)
 RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
 
-# 6) Ensure .env exists AFTER vendor is present, then run artisan
-RUN [ -f .env ] || cp .env.example .env
-RUN php artisan key:generate --force
-
-# Optional: only if this command exists in your app
+# Now artisan can run safely
+RUN php artisan key:generate --force || true
+# If you have custom commands that might not exist in all branches, guard with "|| true"
 # RUN php artisan wayfinder:generate --with-form || true
 
-# 7) Frontend build
+# Frontend build
 COPY --from=node-deps /app/node_modules ./node_modules
 COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* ./
 RUN npm run build
 
-# 8) Permissions and caches
+# Permissions/caches
 RUN chown -R www-data:www-data storage bootstrap/cache \
   && find storage -type d -exec chmod 775 {} \; \
   && find storage -type f -exec chmod 664 {} \; \
   && chmod -R 775 bootstrap/cache
 
-RUN composer dump-autoload -o || true
-RUN php artisan config:cache && php artisan route:cache && php artisan view:cache
+RUN php artisan config:cache && php artisan route:cache && php artisan view:cache || true
 
 EXPOSE 80
