@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\Billing;
 
 use App\Models\Plan;
 use App\Models\PlanPrice;
@@ -8,9 +8,9 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Stripe\StripeClient;
 
-class StripeSyncPlans extends Command
+class SyncPlans extends Command
 {
-    protected $signature = 'stripe:sync-plans {--dry-run}';
+    protected $signature = 'p:stripe:sync {--dry-run}';
     protected $description = 'Sync local plan definitions with Stripe Products and Prices';
 
     public function handle(): int
