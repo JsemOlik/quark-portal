@@ -37,118 +37,76 @@ $endsAtDisplay = null;
 if ($endsAtIso) {
     try {
         $dt = new DateTimeImmutable($endsAtIso);
+        // If you prefer local app timezone display, you could convert:
+        // $tzObj = new DateTimeZone($timezone);
+        // $dt = $dt->setTimezone($tzObj);
         $endsAtDisplay = $dt->format('Y-m-d H:i:s') . ' ' . $timezone;
     } catch (\Throwable $e) {
         $endsAtDisplay = null;
     }
 }
 ?>
-<!-- Debug: keys in down file: <?= htmlspecialchars(implode(', ', $debugKeys), ENT_QUOTES, 'UTF-8') ?> -->
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <title>We’ll be back soon</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-        :root { color-scheme: light dark; }
-        html, body {
-            height: 100%;
-            margin: 0;
-            font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell,
-                Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji",
-                "Segoe UI Emoji", "Segoe UI Symbol";
-            background: #0b0f17;
-            color: #ffeedd;
-        }
-        .wrap { min-height: 100%; display: grid; place-items: center; padding: 2rem; }
-        .card {
-            max-width: 720px; width: 100%;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 16px;
-            padding: 2rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,.35);
-            backdrop-filter: blur(6px);
-        }
-        .badge {
-            display: inline-flex; align-items: center; gap: 8px;
-            padding: 6px 10px;
-            border-radius: 999px;
-            background: rgba(255,255,255,0.06);
-            border: 1px solid rgba(255,255,255,0.12);
-            color: rgba(255, 245, 235, 0.85);
-            font-weight: 700; font-size: 12px; letter-spacing: 0.02em;
-        }
-        h1 { margin: 10px 0 8px; font-size: 28px; line-height: 1.2; color: #fff5eb; }
-        p { margin: 8px 0; line-height: 1.6; color: rgba(255,245,235,0.85); }
-        .muted { color: rgba(255,245,235,0.7); font-size: 0.95rem; }
-        code {
-            background: rgba(255,255,255,0.06);
-            padding: 2px 6px; border-radius: 6px;
-            border: 1px solid rgba(255,255,255,0.12);
-            color: #fff5eb;
-        }
-        .btns { margin-top: 16px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-        .btn {
-            display: inline-flex; align-items: center; gap: 8px;
-            padding: 10px 14px; border-radius: 12px; font-weight: 700; font-size: 14px;
-            text-decoration: none; transition: all .15s ease;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-        .btn.primary {
-            background: #ffd166; color: #2b2119; border-color: #ffd166;
-        }
-        .btn.primary:hover { background: #ffc640; }
-        .btn.ghost {
-            background: rgba(255,255,255,0.06); color: #fff5eb;
-        }
-        .btn.ghost:hover { background: rgba(255,255,255,0.1); }
-        .footer { margin-top: 16px; color: rgba(255,245,235,0.65); font-size: 0.85rem; }
-        .arrow { width: 16px; height: 16px; }
-    </style>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body>
-<div class="wrap">
-    <div class="card">
-        <span class="badge">503 • Scheduled Maintenance</span>
-        <h1>We’ll be back soon</h1>
+<body class="min-h-screen bg-brand-brown text-[rgb(255,245,235)] dark:bg-brand-brown">
+    <main class="min-h-screen w-full flex items-center justify-center px-4">
+        <div class="w-full max-w-2xl text-center">
+            <div class="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-brand-cream/80">
+                503 • Scheduled Maintenance
+            </div>
 
-        <p><?= htmlspecialchars($customMessage, ENT_QUOTES, 'UTF-8') ?></p>
+            <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-brand-cream">
+                We’ll be back soon
+            </h1>
 
-        <?php if ($endsAtDisplay): ?>
-            <p class="muted">
-                Expected to be back by:
-                <strong><?= htmlspecialchars($endsAtDisplay, ENT_QUOTES, 'UTF-8') ?></strong>
+            <p class="mt-3 text-brand-cream/80">
+                <?= htmlspecialchars($customMessage, ENT_QUOTES, 'UTF-8') ?>
             </p>
-        <?php else: ?>
-            <p class="muted">We don't know when we'll be back yet, but we are trying our best!</p>
-        <?php endif; ?>
 
-        <?php if (!empty($retryAfter)) : ?>
-            <p class="muted">
-                Retry-After: <code><?= (int) $retryAfter ?> seconds</code>
-            </p>
-        <?php endif; ?>
+            <?php if ($endsAtDisplay): ?>
+                <p class="mt-2 text-sm text-brand-cream/70">
+                    Expected to be back by:
+                    <span class="font-semibold text-brand">
+                        <?= htmlspecialchars($endsAtDisplay, ENT_QUOTES, 'UTF-8') ?>
+                    </span>
+                </p>
+            <?php else: ?>
+                <p class="mt-2 text-sm text-brand-cream/70">
+                    We don't know when we'll be back yet, but we are trying our best!
+                </p>
+            <?php endif; ?>
 
-        <div class="btns">
-            <a href="<?= htmlspecialchars(url('/status'), ENT_QUOTES, 'UTF-8') ?>" class="btn ghost">
-                View Status Page
-                <svg class="arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </a>
-            <a href="https://discord.gg/" class="btn primary">
-                Join the Discord
-                <svg class="arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </a>
+            <?php if (!empty($retryAfter)) : ?>
+                <p class="mt-2 text-xs text-brand-cream/60">
+                    Retry-After:
+                    <code class="rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5">
+                        <?= (int) $retryAfter ?> seconds
+                    </code>
+                </p>
+            <?php endif; ?>
+
+            <div class="mt-6">
+                <a href="{{ url('/status') }}"
+                   class="mr-2 inline-flex items-center gap-2 rounded-xl bg-brand-cream/5 text-brand-cream px-4 py-3 text-sm font-semibold hover:bg-brand-cream/10 transition-colors border border-brand-cream/50">w
+                    View Status Page
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </a>
+                <a href="{{ url('/dashboard') }}"
+                   class="inline-flex items-center gap-2 rounded-xl bg-brand text-brand-brown px-4 py-3 text-sm font-semibold hover:bg-brand/90 transition-colors">
+                    Join the Discord
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </a>
+            </div>
         </div>
-
-        <?php if (config('app.name')) : ?>
-            <div class="footer"><?= htmlspecialchars(config('app.name'), ENT_QUOTES, 'UTF-8') ?></div>
-        <?php endif; ?>
-    </div>
-</div>
+    </main>
 </body>
 </html>
