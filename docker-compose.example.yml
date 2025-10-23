@@ -3,11 +3,12 @@ name: quark-portal
 x-common:
   db: &db-environment
     # Postgres credentials
-    POSTGRES_PASSWORD: &db-password "CHANGE_ME_DB_PASSWORD"
+    POSTGRES_PASSWORD: &db-password "CHANGE_ME_PLEASE!"
     POSTGRES_USER: "quark"
     POSTGRES_DB: "portal"
 
   app: &app-environment
+    # Core app
     APP_ENV: "production"
     APP_DEBUG: "false"
     APP_URL: "https://example.com"
@@ -28,9 +29,9 @@ x-common:
     DB_PORT: "5432"
     DB_DATABASE: "portal"
     DB_USERNAME: "quark"
-    # DB_PASSWORD is injected from the db anchor via merge below
+    # DB_PASSWORD is injected via *db-password below
 
-    # Optional app-specific vars you shared
+    # Optional app-specific vars
     PTERO_URL: "https://panel.example.com"
     PTERO_APP_KEY: "ptero_..."
     CASHIER_CURRENCY: "czk"
@@ -48,40 +49,51 @@ x-common:
 services:
   db:
     image: postgres:15
-    restart: always
     container_name: quark-portal-db
+    restart: always
     environment:
       <<: *db-environment
     volumes:
       - quark_db_data:/var/lib/postgresql/data
-    # Optional: expose if you want to connect from host
+    # Optional: expose to host tools (pgAdmin/psql)
     # ports:
     #   - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quark -d portal"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   app:
     # Option A: use your published image on GHCR
-    image: ghcr.io/<your-username>/<your-repo>:latest
-    # Option B: build locally from your Dockerfile instead of image:
+    image: ghcr.io/jsemolik/quark-portal:latest
+    # Option B: build locally instead of pulling:
     # build:
     #   context: .
     #   dockerfile: Dockerfile
 
     container_name: quark-portal-app
-    restart: always
+    restart: unless-stopped
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
-      - "8000:80" # Apache inside container uses 80
+      - "8670:80" # Apache inside container listens on 80
     environment:
       <<: [*app-environment, *mail-environment]
       DB_PASSWORD: *db-password
-      # If you prefer to inject APP_KEY at runtime, set it here or run artisan key:generate
+      # Set APP_KEY here if your image/entrypoint doesn't generate it:
       # APP_KEY: "base64:..."
-
     volumes:
-      # Persist logs and storage outside container image
+      # Persist Laravel runtime data outside the image
       - ./storage:/var/www/html/storage
       - ./bootstrap/cache:/var/www/html/bootstrap/cache
+    # Optional healthcheck for app
+    # healthcheck:
+    #   test: ["CMD-SHELL", "curl -fsS http://localhost/ || exit 1"]
+    #   interval: 30s
+    #   timeout: 5s
+    #   retries: 3
 
 volumes:
   quark_db_data:

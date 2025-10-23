@@ -217,7 +217,7 @@ export default function DashboardPage({
                                 </p>
                             </div>
                             <div className="flex md:justify-end gap-3">
-                                <a href="https://discord.gg/yrn667jjD7" target="_blank" rel="noreferrer">
+                                <a href="/discord" target="_blank" rel="noreferrer">
                                     <Button size="lg" className="border border-[#5865F2] bg-[#5865F2] text-white px-4 py-6 text-sm font-semibold hover:bg-[#5865F2]/80 transition-colors inline-flex items-center gap-3">
                                         <img src="/discordwhite.svg" className="h-7 w-7" />
                                         Contact on Discord

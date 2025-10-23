@@ -52,7 +52,8 @@ export default function Hero() {
                         Starting at just 85Kč/month
                     </Button>
                 </Link>
-                <a href="https://discord.gg/pzd23NUj8c" target="_blank" rel="noreferrer">  <Button
+                <a href="/discord" target="_blank" rel="noreferrer">
+                <Button
                     size="lg"
                     className="cursor-pointer align-middle bg-[#5865F2] hover:bg-[#5865F2]/80 text-md text-white mr-4 mt-8 border border-[#5865F2]/80"
                 >
